@@ -9,6 +9,12 @@
 #include "Bootloader.h"
 #include "VirtualMemory.h"
 
+#define HORISONTAL_RESOLUTION_MIN 1280
+#define VERTICAL_RESOLUTION_MIN 720
+
+#define HORISONTAL_RESOLUTION_MAX 1280
+#define VERTICAL_RESOLUTION_MAX 720
+
 VOID *
 AllocateLowRuntimePool (
   IN UINTN  Size
@@ -86,7 +92,9 @@ InitGraphics (
 {
   EFI_STATUS                    Status;
   EFI_GRAPHICS_OUTPUT_PROTOCOL  *GraphicsOutput;
-
+  EFI_GRAPHICS_OUTPUT_MODE_INFORMATION *GraphicsOutputModeInfo;
+  UINTN SizeOfInfo;
+  UINT32 i, GraphicsOutputChoosedMode;
   ASSERT (LoaderParams != NULL);
 
   STATIC EFI_GRAPHICS_OUTPUT_BLT_PIXEL mBlackColour = {0x00, 0x00, 0x00, 0x00};
@@ -113,6 +121,47 @@ InitGraphics (
   //
   // Hint: Use QueryMode/SetMode functions.
   //
+  GraphicsOutputChoosedMode = GraphicsOutput->Mode ? GraphicsOutput->Mode->Mode : 0;
+  for (i = 0; i < GraphicsOutput->Mode->MaxMode; ++i) {
+    Status = GraphicsOutput->QueryMode(
+      GraphicsOutput, 
+      i, 
+      &SizeOfInfo, 
+      &GraphicsOutputModeInfo
+      );
+
+    if (EFI_ERROR (Status)) {
+      DEBUG ((DEBUG_ERROR, "JOS: Cannot query GOP mode info - %r\n", Status));
+      return Status;
+    }
+
+    if (HORISONTAL_RESOLUTION_MIN <= GraphicsOutputModeInfo->HorizontalResolution &&
+        HORISONTAL_RESOLUTION_MAX >= GraphicsOutputModeInfo->HorizontalResolution &&
+        VERTICAL_RESOLUTION_MIN <= GraphicsOutputModeInfo->VerticalResolution &&
+        VERTICAL_RESOLUTION_MAX >= GraphicsOutputModeInfo->VerticalResolution) {
+          GraphicsOutputChoosedMode = i;
+          break;
+        }
+  }
+
+  Status = GraphicsOutput->SetMode(
+    GraphicsOutput,
+    GraphicsOutputChoosedMode
+  );
+
+  if (EFI_ERROR (Status)) {
+    DEBUG ((DEBUG_ERROR, "JOS: Cannot set GOP mode info - %r\n", Status));
+    return Status;
+  }
+  
+  DEBUG ((DEBUG_INFO, 
+    "JOS: Set Gop Mode to %u: (%u x %u) successfully\n", 
+    GraphicsOutputChoosedMode, 
+    GraphicsOutput->Mode->Info->HorizontalResolution, 
+    GraphicsOutput->Mode->Info->VerticalResolution
+    ));
+
+  // LAB 1: 1) DONE
 
   //
   // Fill screen with black.
@@ -275,7 +324,11 @@ GetKernelFile (
   // get loader's containing device.
   //
   // LAB 1: Your code here
-  (void)LoadedImage;
+  Status = gBS->HandleProtocol(
+    gImageHandle,
+    &gEfiLoadedImageProtocolGuid,
+    (VOID **) &LoadedImage
+  );
 
   if (EFI_ERROR (Status)) {
     DEBUG ((DEBUG_ERROR, "JOS: Cannot find LoadedImage protocol - %r\n", Status));
@@ -293,7 +346,11 @@ GetKernelFile (
   // to read the kernel from it later.
   //
   // LAB 1: Your code here
-  (void)FileSystem;
+  Status = gBS->HandleProtocol(
+    LoadedImage->DeviceHandle,
+    &gEfiSimpleFileSystemProtocolGuid,
+    (VOID**) &FileSystem
+  );
 
   if (EFI_ERROR (Status)) {
     DEBUG ((DEBUG_ERROR, "JOS: Cannot find own FileSystem protocol - %r\n", Status));
@@ -305,8 +362,10 @@ GetKernelFile (
   // NOTE: Don't forget to Use ->Close after you've done using it.
   //
   // LAB 1: Your code here
-  (void)CurrentDriveRoot;
-
+  FileSystem->OpenVolume(
+    FileSystem, 
+    &CurrentDriveRoot
+  );
   if (EFI_ERROR (Status)) {
     DEBUG ((DEBUG_ERROR, "JOS: Cannot access own file system - %r\n", Status));
     return Status;
@@ -317,13 +376,20 @@ GetKernelFile (
   // for reading (as EFI_FILE_MODE_READ)
   //
   // LAB 1: Your code here
-  KernelFile = NULL;
+  CurrentDriveRoot->Open(
+    CurrentDriveRoot, 
+    &KernelFile, 
+    KERNEL_PATH, 
+    EFI_FILE_MODE_READ, 
+    0
+  );
 
   if (EFI_ERROR (Status)) {
     DEBUG ((DEBUG_ERROR, "JOS: Cannot access own file system - %r\n", Status));
     return Status;
   }
 
+  CurrentDriveRoot->Close(CurrentDriveRoot);
   *FileProtocol = KernelFile;
   return EFI_SUCCESS;
 }
@@ -987,7 +1053,7 @@ UefiMain (
   UINTN              EntryPoint;
   VOID               *GateData;
 
-#if 1 ///< Uncomment to await debugging
+#if 0 ///< Uncomment to await debugging. LAB 2) Done!
   volatile BOOLEAN   Connected;
   DEBUG ((DEBUG_INFO, "JOS: Awaiting debugger connection\n"));
 
