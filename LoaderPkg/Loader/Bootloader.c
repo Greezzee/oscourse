@@ -1136,8 +1136,11 @@ UefiMain (
 
   Status = TransitionToKernelMode (LoaderParams, &GateData);
   if (EFI_ERROR (Status)) {
+    DEBUG ((DEBUG_ERROR, "JOS: Failed to transit to kernel mode - %r\n", Status));
     CpuDeadLoop ();
   }
+
+  DEBUG ((DEBUG_INFO, "JOS: Transit to kernel mode successful\n"));
 
   CallKernelThroughGate (EntryPoint, LoaderParams, GateData);
 

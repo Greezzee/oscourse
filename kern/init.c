@@ -89,7 +89,6 @@ early_boot_pml4_init(void) {
 void
 test_backtrace(int x) {
     int mon_backtrace(int argc, char **argv, struct Trapframe *tf);
-    cprintf("%s:%d: test_backtrace+\n", __FILE__, __LINE__);
     if (x > 0)
         test_backtrace(x - 1);
     else
@@ -116,11 +115,6 @@ i386_init(void) {
 
     /* Test the stack backtrace function (lab 1 only) */
     test_backtrace(5);
-    cprintf("%s:%d: i386_init+\n", __FILE__, __LINE__);
-    register int a asm("rbp");
-    //register int b asm("rip");
-    cprintf("rbp %x rip \n", a);
-    /* Drop into the kernel monitor. */
     while (1) monitor(NULL);
 }
 
