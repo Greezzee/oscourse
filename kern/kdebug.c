@@ -4,10 +4,12 @@
 #include <inc/dwarf.h>
 #include <inc/elf.h>
 #include <inc/x86.h>
+#include <inc/error.h>
 
 #include <kern/kdebug.h>
 #include <kern/env.h>
 #include <inc/uefi.h>
+
 
 void
 load_kernel_dwarf_info(struct Dwarf_Addrs *addrs) {
@@ -66,10 +68,11 @@ debuginfo_rip(uintptr_t addr, struct Ripdebuginfo *info) {
      * address of the next instruction, so we should substract 5 from it.
      * Hint: use line_for_address from kern/dwarf_lines.c */
 
-    int line_num;
-    res = line_for_address(&addrs, addr - 5, line_offset, &line_num);
+    // LAB 2: Your res here:
+    int line = 0;
+    res = line_for_address(&addrs, addr, line_offset, &line);
     if (res < 0) goto error;
-    info->rip_line = line_num;
+    info->rip_line = line;
 
     /* Find function name corresponding to given address.
      * Hint: note that we need the address of `call` instruction, but rip holds
@@ -78,17 +81,14 @@ debuginfo_rip(uintptr_t addr, struct Ripdebuginfo *info) {
      * Hint: info->rip_fn_name can be not NULL-terminated,
      * string returned by function_by_info will always be */
 
-    uintptr_t offset_func_name;
-    res = function_by_info(&addrs, addr - 5, offset, &tmp_buf, &offset_func_name);
+    // LAB 2: Your res here:
+    tmp_buf = NULL;
+    uintptr_t offs;
+    res = function_by_info(&addrs, addr - 5,  offset, &tmp_buf, &offs);
     if (res < 0) goto error;
-    info->rip_fn_addr = offset_func_name;
-    info->rip_fn_namelen = 0;
-    for (size_t i = 0; i < sizeof(info->rip_fn_name); ++i) {
-        if (tmp_buf[i] == '\0')
-            break;
-        info->rip_fn_name[i] = tmp_buf[i];
-        info->rip_fn_namelen++;
-    }
+    strncpy(info->rip_fn_name, tmp_buf, RIPDEBUG_BUFSIZ);
+    info->rip_fn_namelen = strlen(tmp_buf);
+    info->rip_fn_addr = offs;
 
 error:
     return res;
@@ -103,6 +103,35 @@ find_function(const char *const fname) {
      * in assembly. */
 
     // LAB 3: Your code here:
+    struct Dwarf_Addrs addrs;
+    load_kernel_dwarf_info(&addrs);
 
-    return 0;
+    uintptr_t offset = 0;
+
+    int res = naive_address_by_fname(&addrs, fname, &offset);
+    if (res < 0)
+        res = address_by_fname(&addrs, fname, &offset);
+    
+    if (res < 0 && res != -E_NO_ENT)
+        panic("address_by_fname: %i", res);
+
+    if (offset != 0 && res == 0)
+        return offset;
+        
+    else
+    {
+        for (struct Elf64_Sym *kern_sym = (struct Elf64_Sym *)uefi_lp->SymbolTableStart;
+            (EFI_PHYSICAL_ADDRESS) kern_sym < uefi_lp->SymbolTableEnd; kern_sym++) {
+
+            const char *kern_sym_name = (const char *)(uefi_lp->StringTableStart + kern_sym->st_name);
+
+            if (!strcmp (kern_sym_name, fname))
+            {
+                offset = (uintptr_t) kern_sym->st_value;
+                return offset;
+            }
+        }
+    }
+    
+    return offset;
 }

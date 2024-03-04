@@ -89,6 +89,14 @@ env_init(void) {
     /* Set up envs array */
 
     // LAB 3: Your code here
+
+    env_free_list = &envs[0];
+	envs[0].env_id = 0;
+	for (int i = 1; i < NENV; i++) {
+		envs[i - 1].env_link =  &envs[i];
+		envs[i].env_id = 0;
+	}
+	envs[NENV - 1].env_link = NULL;
 }
 
 /* Allocates and initializes a new environment.
@@ -145,7 +153,9 @@ env_alloc(struct Env **newenv_store, envid_t parent_id, enum EnvType type) {
     env->env_tf.tf_cs = GD_KT;
 
     // LAB 3: Your code here:
-    // static uintptr_t stack_top = 0x2000000;
+    static uintptr_t stack_top = 0x2000000;
+    env->env_tf.tf_rsp = stack_top;
+    stack_top += 2 * PAGE_SIZE;
 #else
     env->env_tf.tf_ds = GD_UD | 3;
     env->env_tf.tf_es = GD_UD | 3;
@@ -173,8 +183,78 @@ bind_functions(struct Env *env, uint8_t *binary, size_t size, uintptr_t image_st
 
     /* NOTE: find_function from kdebug.c should be used */
 
+    const struct Elf* elf_data = (const struct Elf*) binary;
+    
+    const struct Secthdr* sec_headers = (const struct Secthdr*) (binary + elf_data->e_shoff);
+    const uint16_t sec_headers_num  = (const uint16_t) elf_data->e_shnum;
+
+    int16_t string_tab_ind = -1;
+
+    for (uint16_t sec_header_iter = 0; sec_header_iter < sec_headers_num; sec_header_iter++)
+    {
+        const struct Secthdr* cur_sec_header = sec_headers + sec_header_iter;
+
+        if (cur_sec_header->sh_type == ELF_SHT_STRTAB)
+        {
+            if (sec_header_iter == elf_data->e_shstrndx)
+                continue;
+
+            string_tab_ind = (int16_t) sec_header_iter;
+            break;
+        }
+    }
+
+    if (string_tab_ind == -1)
+        return -E_INVALID_EXE;
+
+    const struct Secthdr* string_tab_hdr = sec_headers + string_tab_ind;
+    const char* string_tab = (const char*) (binary + string_tab_hdr->sh_offset);
+
+    for (uint16_t sec_header_iter = 0; sec_header_iter < sec_headers_num; sec_header_iter++)
+    {
+        const struct Secthdr* cur_sec_header = sec_headers + sec_header_iter;
+
+        if (cur_sec_header->sh_type != ELF_SHT_SYMTAB)
+            continue;
+
+        if (cur_sec_header->sh_size == 0)
+            continue;
+
+        const struct Elf64_Sym* sym_tab = (const struct Elf64_Sym*) (binary + cur_sec_header->sh_offset);
+        size_t sym_num = (size_t) (cur_sec_header->sh_size / sizeof(struct Elf64_Sym));
+
+        for (size_t sym_iter = 0; sym_iter < sym_num; sym_iter++)
+        {
+            const struct Elf64_Sym* cur_sym = sym_tab + sym_iter;
+            uint8_t st_info = cur_sym->st_info;
+
+            if ((ELF64_ST_TYPE(st_info) != STT_OBJECT) 
+             || (ELF64_ST_BIND(st_info) != STB_GLOBAL))
+                continue;
+
+            if (cur_sym->st_name == 0)
+                continue;
+
+            const char* sym_name  = (const char*) (string_tab + cur_sym->st_name);
+            uintptr_t sym_value = (uintptr_t) cur_sym->st_value;
+
+            if ((sym_value < image_start) || (sym_value > image_end))
+                panic("bind_functions: sym_value is outside of image: image start = %p image end   = %p sym_value   = %p ", 
+                        (void*) image_start, (void*) image_end, (void*) sym_value);  
+
+            if (*(uintptr_t*) sym_value != 0)
+                continue;
+
+            uintptr_t offset = find_function(sym_name);
+            if (offset == 0)
+                continue;
+
+            *(uintptr_t*) sym_value = offset;       
+        }
+    }
     return 0;
 }
+
 
 /* Set up the initial program binary, stack, and processor flags
  * for a user process.
@@ -220,6 +300,46 @@ static int
 load_icode(struct Env *env, uint8_t *binary, size_t size) {
     // LAB 3: Your code here
 
+    struct Elf* elf_data = (struct Elf*) binary;
+    uintptr_t image_start = 0;
+    uintptr_t image_end = 0;
+
+    if (elf_data->e_magic != ELF_MAGIC)
+        return -E_INVALID_EXE;
+
+    if (elf_data->e_shentsize != sizeof(struct Secthdr))
+        return -E_INVALID_EXE;
+
+    if (elf_data->e_phentsize != sizeof(struct Proghdr))
+        return -E_INVALID_EXE;
+        
+    if (elf_data->e_shstrndx >= elf_data->e_shnum)
+        return -E_INVALID_EXE;
+
+    struct Proghdr* ph = (struct Proghdr*)(binary + elf_data->e_phoff);
+    for (int counter = 0; counter < elf_data->e_phnum; counter++)
+    {
+        if (ph->p_type == ELF_PROG_LOAD)
+        {
+            if (image_start == 0 || ph->p_va < image_start)
+                image_start = ph->p_va;
+
+            if (image_end == 0 || ph->p_va + ph->p_memsz > image_end)
+                image_end = ph->p_va + ph->p_memsz;
+
+            memcpy((void*)(ph->p_va), (void*)(binary + ph->p_offset), (size_t)(ph->p_filesz));
+            memset((void*)(ph->p_va + ph->p_filesz), 0, (size_t)(ph->p_memsz - ph->p_filesz));
+        }
+        
+        ph += 1;
+    }
+    env->binary = binary;
+    env->env_tf.tf_rip = (uintptr_t) elf_data->e_entry;
+
+    int err = bind_functions(env, binary, size, image_start, image_end);
+    if (err < 0)
+        panic("bind_functions: %i", err);
+
     return 0;
 }
 
@@ -232,6 +352,18 @@ load_icode(struct Env *env, uint8_t *binary, size_t size) {
 void
 env_create(uint8_t *binary, size_t size, enum EnvType type) {
     // LAB 3: Your code here
+
+    if (!binary)
+		panic("env_create: null pointer 'binary'\n");
+
+	// Allocate an environment.
+	struct Env *env;
+	int r;
+	if ((r = env_alloc(&env, 0, type)) < 0)
+		panic("env_create: %i\n", r);
+
+	// Load the program using the page directory of its environment.
+	load_icode(env, binary, size);
 }
 
 
@@ -260,6 +392,11 @@ env_destroy(struct Env *env) {
      * it traps to the kernel. */
 
     // LAB 3: Your code here
+
+    env_free(env);
+
+    if (env == curenv)
+        sched_yield(); // call scheduler to run new enviroment
 }
 
 #ifdef CONFIG_KSPACE
@@ -351,6 +488,16 @@ env_run(struct Env *env) {
     }
 
     // LAB 3: Your code here
+
+    if (curenv != env) 
+    { // Context switch.
+		if (curenv && curenv->env_status == ENV_RUNNING)
+			curenv->env_status = ENV_RUNNABLE;
+		curenv = env;
+		curenv->env_status = ENV_RUNNING;
+		curenv->env_runs++;
+	}
+    env_pop_tf(&curenv->env_tf);
 
     while (1)
         ;
