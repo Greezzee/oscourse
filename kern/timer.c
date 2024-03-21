@@ -263,6 +263,13 @@ hpet_get_main_cnt(void) {
     return hpetReg->MAIN_CNT;
 }
 
+uint64_t
+hpet_get_freq(void) {
+    uint64_t cap = hpetReg->GCAP_ID;
+    hpetFemto = (uintptr_t)(cap >> 32);
+    return 1e15 / hpetFemto;
+}
+
 /* - Configure HPET timer 0 to trigger every 0.5 seconds on IRQ_TIMER line
  * - Configure HPET timer 1 to trigger every 1.5 seconds on IRQ_CLOCK line
  *
@@ -331,6 +338,72 @@ hpet_handle_interrupts_tim1(void) {
     pic_send_eoi(IRQ_CLOCK);
 }
 
+#define DEFAULT_FREQ  2500000
+#define TIMES         100
+
+uint32_t
+pmtimer_get_timeval(void) {
+    FADT *fadt = get_fadt();
+    return inl(fadt->PMTimerBlock);
+}
+
+static inline int
+hpet_verify(uint64_t val) {
+    return (hpet_get_main_cnt() >> 8) == val;
+}
+
+static inline int
+hpet_expect(uint64_t val, uint64_t *tscp, unsigned long *deltap) {
+    uint64_t tsc = 0;
+
+    int count = 0;
+    while (count++ < 50000) {
+        if (!hpet_verify(val)) break;
+        tsc = read_tsc();
+    }
+    *deltap = read_tsc() - tsc;
+    *tscp = tsc;
+
+    /* We require _some_ success, but the quality control
+     * will be based on the error terms on the TSC values. */
+    return count > 6;
+}
+
+#define MAX_HPET_MS         25
+#define MAX_HPET_ITERATIONS (MAX_HPET_MS * hpet_get_freq() / 1000 / 256)
+
+static unsigned long
+quick_hpet_calibrate(void) {
+    int i;
+    uint64_t tsc, delta, start_cnt;
+    unsigned long d1, d2;
+
+    start_cnt = (hpet_get_main_cnt() >> 8);
+    hpet_verify(start_cnt);
+    if (hpet_expect(start_cnt, &tsc, &d1)) {
+        for (i = 1; i <= MAX_HPET_ITERATIONS; i++) {
+
+            if (!hpet_expect(start_cnt + i, &delta, &d2)) break;
+
+            delta -= tsc;
+            if (d1 + d2 >= delta >> 11) continue;
+
+            if (!hpet_verify(start_cnt + i + 1)) break;
+
+            goto success;
+        }
+    }
+    return 0;
+
+success:
+
+    delta += (long)(d2 - d1) / 2;
+    delta *= hpet_get_freq();
+    delta /= i * 256 * 1000;
+
+    return delta;
+}
+
 /* Calculate CPU frequency in Hz with the help with HPET timer.
  * HINT Use hpet_get_main_cnt function and do not forget about
  * about pause instruction. */
@@ -338,16 +411,79 @@ uint64_t
 hpet_cpu_frequency(void) {
     static uint64_t cpu_freq;
 
-    // LAB 5: Your code here
+    if (!cpu_freq) {
+        int i = 100;
+        while (--i > 0) {
+            if ((cpu_freq = quick_hpet_calibrate())) break;
+        }
+        if (!i) {
+            cpu_freq = DEFAULT_FREQ;
+            cprintf("Can't calibrate hpet timer. Using default frequency\n");
+        }
+    }
 
-    return cpu_freq;
+    return cpu_freq * 1000;
 }
 
-uint32_t
-pmtimer_get_timeval(void) {
-    FADT *fadt = get_fadt();
-    return inl(fadt->PMTimerBlock);
+
+static inline int
+pm_verify(uint32_t val) {
+    return (pmtimer_get_timeval() >> 8) == val;
 }
+
+static inline int
+pm_expect(uint32_t val, uint64_t *tscp, unsigned long *deltap) {
+    uint64_t tsc = 0;
+
+    int count = 0;
+    while (count++ < 50000) {
+        if (!pm_verify(val)) break;
+        tsc = read_tsc();
+    }
+    *deltap = read_tsc() - tsc;
+    *tscp = tsc;
+
+    /* We require _some_ success, but the quality control
+     * will be based on the error terms on the TSC values. */
+    return count > 6;
+}
+
+#define MAX_PM_MS         25
+#define MAX_PM_ITERATIONS (MAX_PM_MS * PM_FREQ / 1000 / 256)
+
+static unsigned long
+quick_pm_calibrate(void) {
+    int i;
+    uint64_t tsc, delta;
+    unsigned long d1, d2;
+
+    uint32_t start_cnt = (pmtimer_get_timeval() >> 8);
+
+    pm_verify(start_cnt);
+    if (pm_expect(start_cnt, &tsc, &d1)) {
+        for (i = 1; i <= MAX_HPET_ITERATIONS; i++) {
+
+            if (!pm_expect(start_cnt + i, &delta, &d2)) break;
+
+            delta -= tsc;
+            if (d1 + d2 >= delta >> 11) continue;
+
+            if (!pm_verify(start_cnt + i + 1)) break;
+
+            goto success;
+        }
+    }
+    return 0;
+
+success:
+
+    delta += (long)(d2 - d1) / 2;
+    delta *= PM_FREQ;
+    delta /= i * 256 * 1000;
+
+    return delta;
+}
+
 
 /* Calculate CPU frequency in Hz with the help with ACPI PowerManagement timer.
  * HINT Use pmtimer_get_timeval function and do not forget that ACPI PM timer
@@ -356,7 +492,16 @@ uint64_t
 pmtimer_cpu_frequency(void) {
     static uint64_t cpu_freq;
 
-    // LAB 5: Your code here
+    if (!cpu_freq) {
+        int i = 100;
+        while (--i > 0) {
+            if ((cpu_freq = quick_pm_calibrate())) break;
+        }
+        if (!i) {
+            cpu_freq = DEFAULT_FREQ;
+            cprintf("Can't calibrate pm timer. Using default frequency\n");
+        }
+    }
 
-    return cpu_freq;
+    return cpu_freq * 1000;
 }

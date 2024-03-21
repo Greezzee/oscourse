@@ -203,6 +203,13 @@ print_regs(struct PushRegs *regs) {
     cprintf("  rax  0x%08lx\n", (unsigned long)regs->reg_rax);
 }
 
+int enable_schedule;
+
+void 
+set_enable_schedule(int val) {
+    enable_schedule = val;
+}
+
 static void
 trap_dispatch(struct Trapframe *tf) {
     switch (tf->tf_trapno) {
@@ -218,8 +225,12 @@ trap_dispatch(struct Trapframe *tf) {
     case IRQ_OFFSET + IRQ_CLOCK:
     case IRQ_OFFSET + IRQ_TIMER:
         // LAB 5: Your code here
+        cprintf("Timer interrupt\n");
         timer_for_schedule->handle_interrupts();
-        sched_yield();
+
+        if (enable_schedule)
+            sched_yield();
+        
         return;
     default:
         print_trapframe(tf);

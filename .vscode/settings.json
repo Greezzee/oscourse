@@ -4,6 +4,7 @@
         "*.inc": "c",
         "numbers": "c",
         "string_view": "c",
-        "string": "c"
+        "string": "c",
+        "types.h": "c"
     }
 }
