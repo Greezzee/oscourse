@@ -9,10 +9,7 @@
 #include <kern/kclock.h>
 #include <kern/picirq.h>
 #include <kern/trap.h>
-<<<<<<< HEAD
-=======
 #include <kern/pmap.h>
->>>>>>> lab6
 
 #define kilo      (1000ULL)
 #define Mega      (kilo * kilo)
@@ -92,7 +89,6 @@ acpi_find_table(const char *sign) {
      */
     // LAB 5: Your code here:
 
-<<<<<<< HEAD
     RSDP* acpi_rsdp = (RSDP*)uefi_lp->ACPIRoot;
 
     // check for currect
@@ -155,9 +151,6 @@ acpi_find_table(const char *sign) {
     size_t old_len = (h->Length / base_2mb) * base_2mb;
     old_len += h->Length % base_2mb ? base_2mb : 0;
     return mmio_remap_last_region((physaddr_t)h, acpi_table, old_len, h->Length);
-=======
-    return NULL;
->>>>>>> lab6
 }
 
 /* Obtain and map FADT ACPI table address. */
@@ -168,12 +161,8 @@ get_fadt(void) {
     // HINT: ACPI table signatures are
     //       not always as their names
 
-<<<<<<< HEAD
     RSDT* rsdt = acpi_find_table("FACP");
     return (FADT*)rsdt;
-=======
-    return NULL;
->>>>>>> lab6
 }
 
 /* Obtain and map RSDP ACPI table address. */
@@ -182,12 +171,8 @@ get_hpet(void) {
     // LAB 5: Your code here
     // (use acpi_find_table)
 
-<<<<<<< HEAD
     RSDT* rsdt = acpi_find_table("HPET");
     return (HPET*)rsdt;
-=======
-    return NULL;
->>>>>>> lab6
 }
 
 /* Getting physical HPET timer address from its table. */
@@ -279,7 +264,6 @@ hpet_get_main_cnt(void) {
     return hpetReg->MAIN_CNT;
 }
 
-<<<<<<< HEAD
 uint64_t
 hpet_get_freq(void) {
     uint64_t cap = hpetReg->GCAP_ID;
@@ -287,8 +271,6 @@ hpet_get_freq(void) {
     return 1e15 / hpetFemto;
 }
 
-=======
->>>>>>> lab6
 /* - Configure HPET timer 0 to trigger every 0.5 seconds on IRQ_TIMER line
  * - Configure HPET timer 1 to trigger every 1.5 seconds on IRQ_CLOCK line
  *
@@ -298,7 +280,6 @@ hpet_get_freq(void) {
 void
 hpet_enable_interrupts_tim0(void) {
     // LAB 5: Your code here
-<<<<<<< HEAD
     pic_irq_unmask(IRQ_TIMER);
 
     // disabling interruptions
@@ -320,14 +301,11 @@ hpet_enable_interrupts_tim0(void) {
 
     // enable timer back
     hpetReg->GEN_CONF |= HPET_ENABLE_CNF;
-=======
->>>>>>> lab6
 }
 
 void
 hpet_enable_interrupts_tim1(void) {
     // LAB 5: Your code here
-<<<<<<< HEAD
     pic_irq_unmask(IRQ_CLOCK);
 
     // disabling interruptions
@@ -349,8 +327,6 @@ hpet_enable_interrupts_tim1(void) {
 
     // enable timer back
     hpetReg->GEN_CONF |= HPET_ENABLE_CNF;
-=======
->>>>>>> lab6
 }
 
 void
@@ -363,7 +339,6 @@ hpet_handle_interrupts_tim1(void) {
     pic_send_eoi(IRQ_CLOCK);
 }
 
-<<<<<<< HEAD
 #define DEFAULT_FREQ  2500000
 #define TIMES         100
 
@@ -430,8 +405,6 @@ success:
     return delta;
 }
 
-=======
->>>>>>> lab6
 /* Calculate CPU frequency in Hz with the help with HPET timer.
  * HINT Use hpet_get_main_cnt function and do not forget about
  * about pause instruction. */
@@ -439,7 +412,6 @@ uint64_t
 hpet_cpu_frequency(void) {
     static uint64_t cpu_freq;
 
-<<<<<<< HEAD
     if (!cpu_freq) {
         int i = 100;
         while (--i > 0) {
@@ -514,19 +486,6 @@ success:
 }
 
 
-=======
-    // LAB 5: Your code here
-
-    return cpu_freq;
-}
-
-uint32_t
-pmtimer_get_timeval(void) {
-    FADT *fadt = get_fadt();
-    return inl(fadt->PMTimerBlock);
-}
-
->>>>>>> lab6
 /* Calculate CPU frequency in Hz with the help with ACPI PowerManagement timer.
  * HINT Use pmtimer_get_timeval function and do not forget that ACPI PM timer
  *      can be 24-bit or 32-bit. */
@@ -534,7 +493,6 @@ uint64_t
 pmtimer_cpu_frequency(void) {
     static uint64_t cpu_freq;
 
-<<<<<<< HEAD
     if (!cpu_freq) {
         int i = 100;
         while (--i > 0) {
@@ -548,9 +506,3 @@ pmtimer_cpu_frequency(void) {
 
     return cpu_freq * 1000;
 }
-=======
-    // LAB 5: Your code here
-
-    return cpu_freq;
-}
->>>>>>> lab6

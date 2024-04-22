@@ -147,28 +147,11 @@ mon_frequency(int argc, char **argv, struct Trapframe *tf) {
     return 0;
 }
 
-/* Implement timer_start (mon_start), timer_stop (mon_stop), timer_freq (mon_frequency) commands. */
-// LAB 5: Your code here:
-
-int
-mon_start(int argc, char **argv, struct Trapframe *tf) {
-    return 0;
-}
-
-int
-mon_stop(int argc, char **argv, struct Trapframe *tf) {
-    return 0;
-}
-
-int
-mon_frequency(int argc, char **argv, struct Trapframe *tf) {
-    return 0;
-}
-
 // LAB 6: Your code here
 /* Implement memory (mon_memory) commands. */
 int
 mon_memory(int argc, char **argv, struct Trapframe *tf) {
+    dump_memory_lists();
     return 0;
 }
 

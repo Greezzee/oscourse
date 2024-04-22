@@ -5,6 +5,7 @@
         "numbers": "c",
         "string_view": "c",
         "string": "c",
-        "types.h": "c"
+        "types.h": "c",
+        "trap.h": "c"
     }
 }
