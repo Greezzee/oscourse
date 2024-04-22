@@ -57,19 +57,49 @@ mon_kerninfo(int argc, char **argv, struct Trapframe *tf) {
     return 0;
 }
 
+uint64_t 
+get_bp_v(uint8_t* rip, uint64_t current_sp) {
+    uint64_t current_bp_v = 0;
+
+    for (uint64_t i = 0; i <= (uint64_t)rip; i++) {
+        uint8_t* val = rip - i;
+        if (*(uint32_t*)val == 0xfa1e0ff3) { // on endbr64
+            current_bp_v = current_sp + 0x10;
+            break;
+        }
+        if (val[0] == 0x48 && val[2] == 0xec) { // on sub rbp
+            uint64_t offset = 0;
+            if (val[1] == 0x81) { // sub 32-bit val
+                offset = *(uint32_t*)(val + 3) + 0x10;
+            }
+            else if (val[1] == 0x83) { // sub 8-bit val
+                offset = *(uint8_t*)(val + 3) + 0x10;
+            }
+            else continue;
+
+            offset = ROUNDUP(offset, 16); // stack is always alligned
+
+            current_bp_v = current_sp + offset;
+            break;
+        }
+    }
+
+    return current_bp_v;
+}
+
 int
 mon_backtrace(int argc, char **argv, struct Trapframe *tf) {
     // LAB 2: Your code here
 
-    // Read_ebp returns the current value of the ebp register. This first value will not be on the stack. 
-	uint64_t current_bp_v = read_rbp();
-	// The value of current_bp_v turned into an address is a pointer to the previous bp
-	uint64_t *prev_bp_p = (uint64_t *) current_bp_v;
-	
-	uint64_t final_bp_v = 0x0;
-	
-	// Print all relevant items within current_bp_p stack frame. 
-	while(current_bp_v != final_bp_v) 
+    uint8_t* rip = (uint8_t*)read_rip();
+    uint64_t current_sp = read_rsp();
+    uint64_t current_bp_v = get_bp_v(rip, current_sp) + 0x10;
+
+    uint64_t *prev_bp_p = (uint64_t *) current_bp_v;
+    extern void bootstacktop();
+	uint64_t final_bp_v = (uint64_t)bootstacktop;
+
+    while(current_bp_v + 0x10 != final_bp_v) 
 	{	
 		uint64_t rip_v = *(prev_bp_p + 1);
 		uint64_t *rip_p = (uint64_t *) rip_v;
@@ -77,9 +107,38 @@ mon_backtrace(int argc, char **argv, struct Trapframe *tf) {
 		struct Ripdebuginfo info;
 		debuginfo_rip( rip_v, &info);
 		
-		cprintf("rbp %016lx  rip %016lx\n", 
+		cprintf("rbp %016lx  rip %016lx final %016lx\n", 
 			current_bp_v, 
-			rip_v);
+			rip_v,
+            final_bp_v);
+			
+		int offset = (uint64_t)rip_p - info.rip_fn_addr; 
+			
+		cprintf("\t %s:%d: %.*s+%d \n", info.rip_file, info.rip_line, info.rip_fn_namelen, info.rip_fn_name, offset);
+
+		current_bp_v = get_bp_v((uint8_t*)rip_v, current_bp_v);
+		prev_bp_p = (uint64_t *) current_bp_v;
+	}
+    /*
+    cprintf("Old ver:\n");
+    // Read_ebp returns the current value of the ebp register. This first value will not be on the stack. 
+	current_bp_v = read_rbp();
+	// The value of current_bp_v turned into an address is a pointer to the previous bp
+	prev_bp_p = (uint64_t *) current_bp_v;
+	
+	// Print all relevant items within current_bp_p stack frame. 
+	while(current_bp_v + 0x10 != final_bp_v) 
+	{	
+		uint64_t rip_v = *(prev_bp_p + 1);
+		uint64_t *rip_p = (uint64_t *) rip_v;
+		
+		struct Ripdebuginfo info;
+		debuginfo_rip( rip_v, &info);
+		
+		cprintf("rbp %016lx  rip %016lx final %016lx\n", 
+			current_bp_v, 
+			rip_v,
+            final_bp_v);
 			
 		int offset = (uint64_t)rip_p - info.rip_fn_addr; 
 			
@@ -88,7 +147,7 @@ mon_backtrace(int argc, char **argv, struct Trapframe *tf) {
 		current_bp_v = *prev_bp_p;
 		prev_bp_p = (uint64_t *) current_bp_v;
 	}
-
+    */
     return 0;
 }
 

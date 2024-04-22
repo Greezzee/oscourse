@@ -84,15 +84,21 @@ early_boot_pml4_init(void) {
 #endif
 }
 
+int square(int x) {
+    int mon_backtrace(int argc, char **argv, struct Trapframe *tf);
+    x *= x;
+    x += 12;
+    mon_backtrace(0, 0, 0);
+    return x * x;
+}
 
 /* Test the stack backtrace function (lab 1 only) */
 void
 test_backtrace(int x) {
-    int mon_backtrace(int argc, char **argv, struct Trapframe *tf);
     if (x > 0)
         test_backtrace(x - 1);
     else
-        mon_backtrace(0, 0, 0);
+        square(12);
 }
 
 void
