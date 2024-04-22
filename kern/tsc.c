@@ -6,8 +6,11 @@
 
 #include <kern/tsc.h>
 #include <kern/timer.h>
+<<<<<<< HEAD
 #include <kern/trap.h>
 #include <kern/picirq.h>
+=======
+>>>>>>> lab6
 
 /* The clock frequency of the i8253/i8254 PIT */
 #define PIT_TICK_RATE 1193182ul
@@ -16,8 +19,12 @@
 
 struct Timer timer_pit = {
         .timer_name = "pit",
+<<<<<<< HEAD
         .get_cpu_freq = tsc_calibrate,
         };
+=======
+        .get_cpu_freq = tsc_calibrate};
+>>>>>>> lab6
 
 /* Theres more commands but they are not used */
 
@@ -72,6 +79,10 @@ pit_expect_msb(unsigned char val, uint64_t *tscp, unsigned long *deltap) {
         if (!pit_verify_msb(val)) break;
         tsc = read_tsc();
     }
+<<<<<<< HEAD
+=======
+
+>>>>>>> lab6
     *deltap = read_tsc() - tsc;
     *tscp = tsc;
 
@@ -190,11 +201,14 @@ print_timer_error(void) {
     cprintf("Timer Error\n");
 }
 
+<<<<<<< HEAD
 void
 print_cpu_freq(uint64_t hz) {
     cprintf("%lu\n", hz);
 }
 
+=======
+>>>>>>> lab6
 /* Use print_time function to print timert result
  * Use print_timer_error function to print error. */
 
@@ -207,6 +221,7 @@ static uint64_t freq = 0;
 
 void
 timer_start(const char *name) {
+<<<<<<< HEAD
     int i = 0;
 
     for (; i < MAX_TIMERS; i++) {
@@ -225,10 +240,17 @@ timer_start(const char *name) {
     timer = read_tsc();
 
     timer_started = 1;
+=======
+    (void)timer_started;
+    (void)timer_id;
+    (void)timer;
+    (void)freq;
+>>>>>>> lab6
 }
 
 void
 timer_stop(void) {
+<<<<<<< HEAD
     if (!timer_started || timer_id < 0 || timer_id >= MAX_TIMERS) {
         print_timer_error();
         return;
@@ -239,10 +261,13 @@ timer_stop(void) {
     print_time((end_timer - timer) / freq);
 
     timer_started = 0;
+=======
+>>>>>>> lab6
 }
 
 void
 timer_cpu_frequency(const char *name) {
+<<<<<<< HEAD
     int i = 0;
     int id = 0;
     for (; i < MAX_TIMERS; i++) {
@@ -260,4 +285,6 @@ timer_cpu_frequency(const char *name) {
     uint64_t cpu_freq = timertab[id].get_cpu_freq();
 
     print_cpu_freq(cpu_freq);
+=======
+>>>>>>> lab6
 }

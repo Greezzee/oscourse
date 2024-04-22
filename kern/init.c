@@ -9,6 +9,7 @@
 #include <kern/monitor.h>
 #include <kern/tsc.h>
 #include <kern/console.h>
+#include <kern/pmap.h>
 #include <kern/env.h>
 #include <kern/timer.h>
 #include <kern/trap.h>
@@ -43,9 +44,7 @@ timers_schedule(const char *name) {
             }
 
             timer_for_schedule = &timertab[i];
-            cprintf("Enabling interrups\n");
             timertab[i].enable_interrupts();
-            cprintf("finished\n");
             return;
         }
     }
@@ -141,6 +140,9 @@ i386_init(void) {
         cprintf("6828 decimal is %o octal!\n", 6828);
         cprintf("END: %p\n", end);
     }
+
+    /* Lab 6 memory management initialization functions */
+    init_memory();
 
     pic_init();
     timers_init();
