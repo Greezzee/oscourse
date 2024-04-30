@@ -205,7 +205,7 @@ bind_functions(struct Env *env, uint8_t *binary, size_t size, uintptr_t image_st
     sum_and_overflow(sec_headers, sec_headers_num - 1, sizeof(struct Secthdr));
     if (overflow)
         panic("bind_functions: sec_headers + sec_headers_num - 1 address overflow\n");
-
+    // Got section headers, start parsing it -------------------------------------
     for (uint16_t sec_header_iter = 0; sec_header_iter < sec_headers_num; sec_header_iter++)
     {
         const struct Secthdr* cur_sec_header = (const struct Secthdr*)(sec_headers + sec_header_iter);
@@ -224,7 +224,7 @@ bind_functions(struct Env *env, uint8_t *binary, size_t size, uintptr_t image_st
 
     if (string_tab_ind == -1)
         return -E_INVALID_EXE;
-
+    // found SHSTRTAB section with functions names ----------------------------------------
     uint16_t strung_tab_ind_u = (uint16_t)string_tab_ind;
     const struct Secthdr* string_tab_hdr = (const struct Secthdr*)sum_and_overflow(sec_headers, strung_tab_ind_u, sizeof(struct Secthdr));
     if (overflow)
@@ -232,7 +232,9 @@ bind_functions(struct Env *env, uint8_t *binary, size_t size, uintptr_t image_st
     const char* string_tab = (const char*)sum_and_overflow(binary, string_tab_hdr->sh_offset, sizeof(uint8_t));
     if (overflow)
         panic("bind_functions: string_tab address overflow\n");
+    // got string table ---------------------------------
 
+    // parsing over SYMTABs 
     for (uint16_t sec_header_iter = 0; sec_header_iter < sec_headers_num; sec_header_iter++)
     {
         const struct Secthdr* cur_sec_header = (const struct Secthdr*)(sec_headers + sec_header_iter);
@@ -253,6 +255,7 @@ bind_functions(struct Env *env, uint8_t *binary, size_t size, uintptr_t image_st
         sum_and_overflow(sym_tab, sym_num - 1, sizeof(struct Elf64_Sym));
         if (overflow)
             panic("bind_functions: cur_sym address overflow\n");
+        // parsing symtab symbols
         for (size_t sym_iter = 0; sym_iter < sym_num; sym_iter++)
         {
             const struct Elf64_Sym* cur_sym = (const struct Elf64_Sym*)(sym_tab + sym_iter);
@@ -264,24 +267,24 @@ bind_functions(struct Env *env, uint8_t *binary, size_t size, uintptr_t image_st
 
             if (cur_sym->st_name == 0)
                 continue;
-
+            // finding symbol name in strtab
             const char* sym_name  = (const char*)sum_and_overflow(string_tab, cur_sym->st_name, sizeof(char));
             if (overflow)
                 panic("bind_functions: sym_name address overflow\n");
             uintptr_t sym_value = (uintptr_t) cur_sym->st_value;
-
+            // check if it is in image
             if ((sym_value < image_start) || (sym_value > image_end))
                 panic("bind_functions: sym_value is outside of image: image start = %p image end   = %p sym_value   = %p ", 
                         (void*) image_start, (void*) image_end, (void*) sym_value);  
 
             if (*(uintptr_t*) sym_value != 0)
                 continue;
-
+            // find function with name
             uintptr_t offset = find_function(sym_name);
             if (offset == 0)
                 continue;
-
-            *(uintptr_t*) sym_value = offset;       
+            // bind function with found one
+            *(uintptr_t*)sym_value = offset;       
         }
     }
     return 0;
