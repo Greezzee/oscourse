@@ -63,7 +63,7 @@ get_bp_v(uint8_t* rip, uint64_t current_sp) {
 
     for (uint64_t i = 0; i <= (uint64_t)rip; i++) {
         uint8_t* val = rip - i;
-        if (*(uint32_t*)val == 0xfa1e0ff3) { // on endbr64
+        if (*(uint32_t*)val == 0xfa1e0ff3) { // on prologue
             current_bp_v = current_sp + 0x10;
             break;
         }
@@ -77,7 +77,9 @@ get_bp_v(uint8_t* rip, uint64_t current_sp) {
             }
             else continue;
 
-            offset = ROUNDUP(offset, 16); // stack is always alligned
+            //cprintf("offset // 16: %ld\n", offset % 16);
+
+            offset = offset + 8; // stack is always alligned
 
             current_bp_v = current_sp + offset;
             break;
@@ -98,8 +100,8 @@ mon_backtrace(int argc, char **argv, struct Trapframe *tf) {
     uint64_t *prev_bp_p = (uint64_t *) current_bp_v;
     extern void bootstacktop();
 	uint64_t final_bp_v = (uint64_t)bootstacktop;
-
-    while(current_bp_v + 0x10 != final_bp_v) 
+    int time_to_stop = 0;
+    while(1) 
 	{	
 		uint64_t rip_v = *(prev_bp_p + 1);
 		uint64_t *rip_p = (uint64_t *) rip_v;
@@ -107,10 +109,9 @@ mon_backtrace(int argc, char **argv, struct Trapframe *tf) {
 		struct Ripdebuginfo info;
 		debuginfo_rip( rip_v, &info);
 		
-		cprintf("rbp %016lx  rip %016lx final %016lx\n", 
+		cprintf("rbp %016lx  rip %016lx\n", 
 			current_bp_v, 
-			rip_v,
-            final_bp_v);
+			rip_v);
 			
 		int offset = (uint64_t)rip_p - info.rip_fn_addr; 
 			
@@ -118,6 +119,12 @@ mon_backtrace(int argc, char **argv, struct Trapframe *tf) {
 
 		current_bp_v = get_bp_v((uint8_t*)rip_v, current_bp_v);
 		prev_bp_p = (uint64_t *) current_bp_v;
+
+        if (time_to_stop)
+            break;
+
+        if (current_bp_v + 0x10 == final_bp_v)
+            time_to_stop = 1;
 	}
     /*
     cprintf("Old ver:\n");
