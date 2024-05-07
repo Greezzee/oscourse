@@ -173,10 +173,14 @@ env_alloc(struct Env **newenv_store, envid_t parent_id, enum EnvType type) {
 }
 
 int overflow = 0;
-const void* sum_and_overflow(const void* ptr, size_t offset, size_t ptr_size) {
+const void* sum_and_overflow(const void* ptr, size_t offset, size_t ptr_size, size_t size) {
+    if (size != 0 && (uintptr_t)ptr > UINTPTR_MAX - size)
+        overflow = 1;
     if (UINTPTR_MAX / ptr_size <= offset)
         overflow = 1;
     if (UINTPTR_MAX - offset * ptr_size < (uintptr_t)ptr)
+        overflow = 1;
+    if (size != 0 && offset * ptr_size >= size)
         overflow = 1;
     return ptr + offset * ptr_size;
 }
@@ -194,7 +198,7 @@ bind_functions(struct Env *env, uint8_t *binary, size_t size, uintptr_t image_st
 
     const struct Elf* elf_data = (const struct Elf*) binary;
 
-    const struct Secthdr* sec_headers = (const struct Secthdr*)sum_and_overflow(binary, elf_data->e_shoff, sizeof(uint8_t));
+    const struct Secthdr* sec_headers = (const struct Secthdr*)sum_and_overflow(binary, elf_data->e_shoff, sizeof(uint8_t), size);
     if (overflow)
         panic("bind_functions: sec_headers address overflow\n");
 
@@ -202,9 +206,9 @@ bind_functions(struct Env *env, uint8_t *binary, size_t size, uintptr_t image_st
 
     int16_t string_tab_ind = -1;
 
-    sum_and_overflow(sec_headers, sec_headers_num - 1, sizeof(struct Secthdr));
+    sum_and_overflow(sec_headers, sec_headers_num, sizeof(struct Secthdr), size);
     if (overflow)
-        panic("bind_functions: sec_headers + sec_headers_num - 1 address overflow\n");
+        panic("bind_functions: sec_headers + sec_headers_num address overflow\n");
     // Got section headers, start parsing it -------------------------------------
     for (uint16_t sec_header_iter = 0; sec_header_iter < sec_headers_num; sec_header_iter++)
     {
@@ -226,12 +230,12 @@ bind_functions(struct Env *env, uint8_t *binary, size_t size, uintptr_t image_st
         return -E_INVALID_EXE;
     // found SHSTRTAB section with functions names ----------------------------------------
     uint16_t strung_tab_ind_u = (uint16_t)string_tab_ind;
-    const struct Secthdr* string_tab_hdr = (const struct Secthdr*)sum_and_overflow(sec_headers, strung_tab_ind_u, sizeof(struct Secthdr));
+    const struct Secthdr* string_tab_hdr = (const struct Secthdr*)(sec_headers + strung_tab_ind_u);
+
+    const char* string_tab = (const char*)sum_and_overflow(binary, string_tab_hdr->sh_offset, sizeof(uint8_t), size);
+    sum_and_overflow(binary, string_tab_hdr->sh_offset + string_tab_hdr->sh_size, sizeof(uint8_t), size);
     if (overflow)
-        panic("bind_functions: string_tab_hdr address overflow\n");
-    const char* string_tab = (const char*)sum_and_overflow(binary, string_tab_hdr->sh_offset, sizeof(uint8_t));
-    if (overflow)
-        panic("bind_functions: string_tab address overflow\n");
+        return -E_INVALID_EXE;
     // got string table ---------------------------------
 
     // parsing over SYMTABs 
@@ -239,7 +243,7 @@ bind_functions(struct Env *env, uint8_t *binary, size_t size, uintptr_t image_st
     {
         const struct Secthdr* cur_sec_header = (const struct Secthdr*)(sec_headers + sec_header_iter);
         if (overflow)
-            panic("bind_functions: cur_sec_header address overflow\n");
+            return -E_INVALID_EXE;
 
         if (cur_sec_header->sh_type != ELF_SHT_SYMTAB)
             continue;
@@ -247,14 +251,16 @@ bind_functions(struct Env *env, uint8_t *binary, size_t size, uintptr_t image_st
         if (cur_sec_header->sh_size == 0)
             continue;
 
-        const struct Elf64_Sym* sym_tab = (const struct Elf64_Sym*)sum_and_overflow(binary, cur_sec_header->sh_offset, sizeof(uint8_t));
+        const struct Elf64_Sym* sym_tab = (const struct Elf64_Sym*)sum_and_overflow(binary, cur_sec_header->sh_offset, sizeof(uint8_t), size);
+        sum_and_overflow(binary, cur_sec_header->sh_offset + cur_sec_header->sh_size, sizeof(uint8_t), size);
         if (overflow)
-            panic("bind_functions: sym_tab address overflow\n");
+            return -E_INVALID_EXE;
+
         size_t sym_num = (size_t) (cur_sec_header->sh_size / sizeof(struct Elf64_Sym));
 
-        sum_and_overflow(sym_tab, sym_num - 1, sizeof(struct Elf64_Sym));
+        sum_and_overflow(sym_tab, sym_num, sizeof(struct Elf64_Sym), size);
         if (overflow)
-            panic("bind_functions: cur_sym address overflow\n");
+            return -E_INVALID_EXE;
         // parsing symtab symbols
         for (size_t sym_iter = 0; sym_iter < sym_num; sym_iter++)
         {
@@ -268,14 +274,25 @@ bind_functions(struct Env *env, uint8_t *binary, size_t size, uintptr_t image_st
             if (cur_sym->st_name == 0)
                 continue;
             // finding symbol name in strtab
-            const char* sym_name  = (const char*)sum_and_overflow(string_tab, cur_sym->st_name, sizeof(char));
+            const char* sym_name = (const char*)sum_and_overflow(string_tab, cur_sym->st_name, sizeof(char), size);
             if (overflow)
-                panic("bind_functions: sym_name address overflow\n");
+                return -E_INVALID_EXE;
+
+            size_t sym_off = 0;
+            size_t str_size = cur_sym->st_size ? cur_sym->st_size : string_tab_hdr->sh_size;
+            if (str_size > string_tab_hdr->sh_size)
+                panic("bind_functions: str_size is too big\n");
+            for (;sym_off < str_size; sym_off++) {
+                if (sym_name[sym_off] == '\0')
+                    break;
+            }
+            if (sym_off == string_tab_hdr->sh_size)
+               return -E_INVALID_EXE;
+
             uintptr_t sym_value = (uintptr_t) cur_sym->st_value;
             // check if it is in image
             if ((sym_value < image_start) || (sym_value > image_end))
-                panic("bind_functions: sym_value is outside of image: image start = %p image end   = %p sym_value   = %p ", 
-                        (void*) image_start, (void*) image_end, (void*) sym_value);  
+                return -E_INVALID_EXE;
 
             if (*(uintptr_t*) sym_value != 0)
                 continue;
@@ -351,7 +368,7 @@ load_icode(struct Env *env, uint8_t *binary, size_t size) {
     if (elf_data->e_shstrndx >= elf_data->e_shnum)
         return -E_INVALID_EXE;
 
-    struct Proghdr* ph = (struct Proghdr*)sum_and_overflow(binary, elf_data->e_phoff, sizeof(uint8_t));
+    struct Proghdr* ph = (struct Proghdr*)sum_and_overflow(binary, elf_data->e_phoff, sizeof(uint8_t), size);
     if (overflow)
         panic("load_icode: ph address overflow\n");
     for (int counter = 0; counter < elf_data->e_phnum; counter++)
@@ -360,16 +377,16 @@ load_icode(struct Env *env, uint8_t *binary, size_t size) {
         {
             if (image_start == 0 || ph->p_va < image_start)
                 image_start = ph->p_va;
-            sum_and_overflow((void*)ph->p_va, ph->p_memsz, sizeof(UINT64));
+            sum_and_overflow((void*)ph->p_va, ph->p_memsz, sizeof(UINT64), 0);
             if (overflow)
                 panic("load_icode: image_end address overflow\n");
             if (image_end == 0 || ph->p_va + ph->p_memsz > image_end)
                 image_end = ph->p_va + ph->p_memsz;
 
-            sum_and_overflow(binary, ph->p_offset, sizeof(uint8_t));
+            sum_and_overflow(binary, ph->p_offset, sizeof(uint8_t), size);
             if (overflow)
                 panic("load_icode: binary + ph->p_offset address overflow\n");
-            sum_and_overflow((void*)ph->p_va, ph->p_filesz, sizeof(UINT64));
+            sum_and_overflow((void*)ph->p_va, ph->p_filesz, sizeof(UINT64), 0);
             if (overflow)
                 panic("load_icode: ph->p_va + ph->p_filesz address overflow\n");
 
