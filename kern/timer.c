@@ -89,7 +89,68 @@ acpi_find_table(const char *sign) {
      */
     // LAB 5: Your code here:
 
-    return NULL;
+    RSDP* acpi_rsdp = (RSDP*)uefi_lp->ACPIRoot;
+
+    // check for currect
+    if (strncmp(acpi_rsdp->Signature, "RSD PTR ", 8) != 0) {
+        cprintf("Error: Bad acpi_rsdp signature: [%s]\n", acpi_rsdp->Signature);
+        return NULL; // Incorrect signature of RSD
+    }
+
+    // checksum
+    uint8_t* rsdp_bytes = (uint8_t*)acpi_rsdp;
+    uint8_t checksum = 0;
+    int i = 0;
+    for (; i < acpi_rsdp->Length; i++)
+        checksum += rsdp_bytes[i];
+    if (checksum != 0) {
+        cprintf("Error: Bad acpi_rsdp checksum\n");
+        return NULL; // Incorrect checksum
+    }
+
+    // getting rsdt
+    RSDT* rsdt = NULL;
+    if (acpi_rsdp->Revision == 0) {
+        // ACPI 1.0, so using RSDT
+        rsdt = (RSDT*)(uint64_t)acpi_rsdp->RsdtAddress;
+    }
+    else if (acpi_rsdp->Revision == 2) {
+        // ACPI 2.0 to 6.1, so using XSDT
+        rsdt = (RSDT*)acpi_rsdp->XsdtAddress;
+    }
+    else {
+        cprintf("Error: Can't resolve this RSDP revision\n");
+        return NULL; // Can't resolve this RSDP Revision
+    }
+    
+    int entries = (rsdt->h.Length - sizeof(rsdt->h)) / 8;
+    ACPISDTHeader *h = NULL;
+    for (i = 0; i < entries; i++)
+    {
+        h = (ACPISDTHeader *)(uint64_t)rsdt->PointerToOtherSDT[i];
+        if (!strncmp(h->Signature, sign, 4)) {
+            break;
+        }
+    }
+    if (i == entries) {
+        cprintf("Error: Can't find acpisht header with sign [%.4s]\n", sign);
+        return NULL;
+    }
+    // do checksum for ACPI table
+    checksum = 0;
+    for (int i = 0; i < h->Length; i++)
+        checksum += ((char *)h)[i];
+    
+    if (checksum != 0) {
+        cprintf("Error: Bad rsdt checksum\n");
+        return NULL; // Incorrect checksum
+    }
+
+    const physaddr_t base_2mb = 0x200000;
+    void* acpi_table = mmio_map_region((physaddr_t)h, h->Length);
+    size_t old_len = (h->Length / base_2mb) * base_2mb;
+    old_len += h->Length % base_2mb ? base_2mb : 0;
+    return mmio_remap_last_region((physaddr_t)h, acpi_table, old_len, h->Length);
 }
 
 /* Obtain and map FADT ACPI table address. */
@@ -100,7 +161,8 @@ get_fadt(void) {
     // HINT: ACPI table signatures are
     //       not always as their names
 
-    return NULL;
+    RSDT* rsdt = acpi_find_table("FACP");
+    return (FADT*)rsdt;
 }
 
 /* Obtain and map RSDP ACPI table address. */
@@ -109,7 +171,8 @@ get_hpet(void) {
     // LAB 5: Your code here
     // (use acpi_find_table)
 
-    return NULL;
+    RSDT* rsdt = acpi_find_table("HPET");
+    return (HPET*)rsdt;
 }
 
 /* Getting physical HPET timer address from its table. */
@@ -201,6 +264,13 @@ hpet_get_main_cnt(void) {
     return hpetReg->MAIN_CNT;
 }
 
+uint64_t
+hpet_get_freq(void) {
+    uint64_t cap = hpetReg->GCAP_ID;
+    hpetFemto = (uintptr_t)(cap >> 32);
+    return 1e15 / hpetFemto;
+}
+
 /* - Configure HPET timer 0 to trigger every 0.5 seconds on IRQ_TIMER line
  * - Configure HPET timer 1 to trigger every 1.5 seconds on IRQ_CLOCK line
  *
@@ -210,11 +280,53 @@ hpet_get_main_cnt(void) {
 void
 hpet_enable_interrupts_tim0(void) {
     // LAB 5: Your code here
+    pic_irq_unmask(IRQ_TIMER);
+
+    // disabling interruptions
+    hpetReg->GEN_CONF &= ~HPET_ENABLE_CNF;
+    // enabling LegacyReplacement Route
+    hpetReg->GEN_CONF |= HPET_LEG_RT_CNF;
+    // reset main counter;
+    hpetReg->MAIN_CNT = 0;
+    // setting timer to periodic mode
+    hpetReg->TIM0_CONF |= HPET_TN_TYPE_CNF;
+    hpetReg->TIM0_CONF |= HPET_TN_INT_ENB_CNF;
+    
+    uint64_t clk_period = hpetReg->GCAP_ID >> 32; // reading clock period in femptoseconds
+    uint64_t timer_in_fs = 5 * 1e14; // 0.5 s in fs
+    uint64_t periods = timer_in_fs / clk_period;
+    // setting clock period
+    hpetReg->TIM0_CONF |= HPET_TN_VAL_SET_CNF;
+    hpetReg->TIM0_COMP = periods;
+
+    // enable timer back
+    hpetReg->GEN_CONF |= HPET_ENABLE_CNF;
 }
 
 void
 hpet_enable_interrupts_tim1(void) {
     // LAB 5: Your code here
+    pic_irq_unmask(IRQ_CLOCK);
+
+    // disabling interruptions
+    hpetReg->GEN_CONF &= ~HPET_ENABLE_CNF;
+    // enabling LegacyReplacement Route
+    hpetReg->GEN_CONF |= HPET_LEG_RT_CNF;
+    // reset main counter;
+    hpetReg->MAIN_CNT = 0;
+    // setting timer to periodic mode
+    hpetReg->TIM1_CONF |= HPET_TN_TYPE_CNF;
+    hpetReg->TIM1_CONF |= HPET_TN_INT_ENB_CNF;
+    
+    uint64_t clk_period = hpetReg->GCAP_ID >> 32; // reading clock period in femptoseconds
+    uint64_t timer_in_fs = 15 * 1e14; // 0.5 s in fs
+    uint64_t periods = timer_in_fs / clk_period;
+    // setting clock period
+    hpetReg->TIM1_CONF |= HPET_TN_VAL_SET_CNF;
+    hpetReg->TIM1_COMP = periods;
+
+    // enable timer back
+    hpetReg->GEN_CONF |= HPET_ENABLE_CNF;
 }
 
 void
@@ -227,6 +339,72 @@ hpet_handle_interrupts_tim1(void) {
     pic_send_eoi(IRQ_CLOCK);
 }
 
+#define DEFAULT_FREQ  2500000
+#define TIMES         100
+
+uint32_t
+pmtimer_get_timeval(void) {
+    FADT *fadt = get_fadt();
+    return inl(fadt->PMTimerBlock);
+}
+
+static inline int
+hpet_verify(uint64_t val) {
+    return (hpet_get_main_cnt() >> 8) == val;
+}
+
+static inline int
+hpet_expect(uint64_t val, uint64_t *tscp, unsigned long *deltap) {
+    uint64_t tsc = 0;
+
+    int count = 0;
+    while (count++ < 50000) {
+        if (!hpet_verify(val)) break;
+        tsc = read_tsc();
+    }
+    *deltap = read_tsc() - tsc;
+    *tscp = tsc;
+
+    /* We require _some_ success, but the quality control
+     * will be based on the error terms on the TSC values. */
+    return count > 6;
+}
+
+#define MAX_HPET_MS         25
+#define MAX_HPET_ITERATIONS (MAX_HPET_MS * hpet_get_freq() / 1000 / 256)
+
+static unsigned long
+quick_hpet_calibrate(void) {
+    int i;
+    uint64_t tsc, delta, start_cnt;
+    unsigned long d1, d2;
+
+    start_cnt = (hpet_get_main_cnt() >> 8);
+    hpet_verify(start_cnt);
+    if (hpet_expect(start_cnt, &tsc, &d1)) {
+        for (i = 1; i <= MAX_HPET_ITERATIONS; i++) {
+
+            if (!hpet_expect(start_cnt + i, &delta, &d2)) break;
+
+            delta -= tsc;
+            if (d1 + d2 >= delta >> 11) continue;
+
+            if (!hpet_verify(start_cnt + i + 1)) break;
+
+            goto success;
+        }
+    }
+    return 0;
+
+success:
+
+    delta += (long)(d2 - d1) / 2;
+    delta *= hpet_get_freq();
+    delta /= i * 256 * 1000;
+
+    return delta;
+}
+
 /* Calculate CPU frequency in Hz with the help with HPET timer.
  * HINT Use hpet_get_main_cnt function and do not forget about
  * about pause instruction. */
@@ -234,16 +412,79 @@ uint64_t
 hpet_cpu_frequency(void) {
     static uint64_t cpu_freq;
 
-    // LAB 5: Your code here
+    if (!cpu_freq) {
+        int i = 100;
+        while (--i > 0) {
+            if ((cpu_freq = quick_hpet_calibrate())) break;
+        }
+        if (!i) {
+            cpu_freq = DEFAULT_FREQ;
+            cprintf("Can't calibrate hpet timer. Using default frequency\n");
+        }
+    }
 
-    return cpu_freq;
+    return cpu_freq * 1000;
 }
 
-uint32_t
-pmtimer_get_timeval(void) {
-    FADT *fadt = get_fadt();
-    return inl(fadt->PMTimerBlock);
+
+static inline int
+pm_verify(uint32_t val) {
+    return (pmtimer_get_timeval() >> 8) == val;
 }
+
+static inline int
+pm_expect(uint32_t val, uint64_t *tscp, unsigned long *deltap) {
+    uint64_t tsc = 0;
+
+    int count = 0;
+    while (count++ < 50000) {
+        if (!pm_verify(val)) break;
+        tsc = read_tsc();
+    }
+    *deltap = read_tsc() - tsc;
+    *tscp = tsc;
+
+    /* We require _some_ success, but the quality control
+     * will be based on the error terms on the TSC values. */
+    return count > 6;
+}
+
+#define MAX_PM_MS         25
+#define MAX_PM_ITERATIONS (MAX_PM_MS * PM_FREQ / 1000 / 256)
+
+static unsigned long
+quick_pm_calibrate(void) {
+    int i;
+    uint64_t tsc, delta;
+    unsigned long d1, d2;
+
+    uint32_t start_cnt = (pmtimer_get_timeval() >> 8);
+
+    pm_verify(start_cnt);
+    if (pm_expect(start_cnt, &tsc, &d1)) {
+        for (i = 1; i <= MAX_HPET_ITERATIONS; i++) {
+
+            if (!pm_expect(start_cnt + i, &delta, &d2)) break;
+
+            delta -= tsc;
+            if (d1 + d2 >= delta >> 11) continue;
+
+            if (!pm_verify(start_cnt + i + 1)) break;
+
+            goto success;
+        }
+    }
+    return 0;
+
+success:
+
+    delta += (long)(d2 - d1) / 2;
+    delta *= PM_FREQ;
+    delta /= i * 256 * 1000;
+
+    return delta;
+}
+
 
 /* Calculate CPU frequency in Hz with the help with ACPI PowerManagement timer.
  * HINT Use pmtimer_get_timeval function and do not forget that ACPI PM timer
@@ -252,7 +493,16 @@ uint64_t
 pmtimer_cpu_frequency(void) {
     static uint64_t cpu_freq;
 
-    // LAB 5: Your code here
+    if (!cpu_freq) {
+        int i = 100;
+        while (--i > 0) {
+            if ((cpu_freq = quick_pm_calibrate())) break;
+        }
+        if (!i) {
+            cpu_freq = DEFAULT_FREQ;
+            cprintf("Can't calibrate pm timer. Using default frequency\n");
+        }
+    }
 
-    return cpu_freq;
+    return cpu_freq * 1000;
 }

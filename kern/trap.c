@@ -98,6 +98,8 @@ trapname(int trapno) {
 void
 trap_init(void) {
     // LAB 4: Your code here
+    extern void clock_thdlr();
+    idt[IRQ_OFFSET + IRQ_CLOCK] = GATE(0, GD_KT, clock_thdlr, 0);
     // LAB 5: Your code here
 
     // LAB 8: Your code here
@@ -110,6 +112,8 @@ trap_init(void) {
      * code execution */
     idt[T_PGFLT].gd_ist = 1;
 
+    extern void timer_thdlr();
+    idt[IRQ_OFFSET + IRQ_TIMER] = GATE(0, GD_KT, timer_thdlr, 0);
     /* Per-CPU setup */
     trap_init_percpu();
 }
@@ -212,6 +216,13 @@ print_regs(struct PushRegs *regs) {
     cprintf("  rax  0x%08lx\n", (unsigned long)regs->reg_rax);
 }
 
+int enable_schedule;
+
+void 
+set_enable_schedule(int val) {
+    enable_schedule = val;
+}
+
 static void
 trap_dispatch(struct Trapframe *tf) {
     switch (tf->tf_trapno) {
@@ -239,8 +250,13 @@ trap_dispatch(struct Trapframe *tf) {
         return;
     case IRQ_OFFSET + IRQ_CLOCK:
     case IRQ_OFFSET + IRQ_TIMER:
-        // LAB 4: Your code here
         // LAB 5: Your code here
+        cprintf("Timer interrupt\n");
+        timer_for_schedule->handle_interrupts();
+
+        if (enable_schedule)
+            sched_yield();
+        
         return;
     default:
         print_trapframe(tf);

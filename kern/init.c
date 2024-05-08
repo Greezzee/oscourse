@@ -151,12 +151,14 @@ i386_init(void) {
     fb_init();
     if (trace_init) cprintf("Framebuffer initialised\n");
 
+    trap_init();
     /* User environment initialization functions */
     env_init();
-
     /* Choose the timer used for scheduling: hpet or pit */
-    timers_schedule("hpet0");
+    timers_schedule("pit");
 
+    //set_enable_schedule(0);
+    //assert(false);
 #ifdef CONFIG_KSPACE
     /* Touch all you want */
     ENV_CREATE_KERNEL_TYPE(prog_test1);
@@ -179,8 +181,8 @@ i386_init(void) {
     ENV_CREATE(user_hello, ENV_TYPE_USER);
 #endif /* TEST* */
 #endif
-
     /* Schedule and run the first user environment! */
+    set_enable_schedule(1);
     sched_yield();
 }
 

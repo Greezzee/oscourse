@@ -63,12 +63,13 @@ CallKernelThroughGate (
     DEBUG ((DEBUG_ERROR, "JOS: No LM-bit support on the target CPU\n"));
     return;
   }
-
+  DEBUG ((DEBUG_INFO, "JOS: Go to CallKernelThroughGateAsm\n"));
   CallKernelThroughGateAsm (
     EntryPoint,
     LoaderParams,
     GateData
     );
+  DEBUG ((DEBUG_INFO, "JOS: Exited CallKernelThroughGateAsm\n"));
 }
 
 EFI_STATUS
