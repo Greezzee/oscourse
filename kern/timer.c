@@ -318,7 +318,7 @@ hpet_enable_interrupts_tim1(void) {
     hpetReg->TIM1_CONF |= HPET_TN_INT_ENB_CNF;
     
     uint64_t clk_period = hpetReg->GCAP_ID >> 32; // reading clock period in femptoseconds
-    uint64_t timer_in_fs = 15 * 1e14; // 0.5 s in fs
+    uint64_t timer_in_fs = 15 * 1e14; // 1.5 s in fs
     uint64_t periods = timer_in_fs / clk_period;
     // setting clock period
     hpetReg->TIM1_CONF |= HPET_TN_VAL_SET_CNF;
@@ -349,7 +349,7 @@ pmtimer_get_timeval(void) {
 
 static inline int
 hpet_verify(uint64_t val) {
-    return (hpet_get_main_cnt() >> 8) == val;
+    return (hpet_get_main_cnt() >> 16) == val;
 }
 
 static inline int
@@ -358,6 +358,7 @@ hpet_expect(uint64_t val, uint64_t *tscp, unsigned long *deltap) {
 
     int count = 0;
     while (count++ < 50000) {
+        asm volatile("pause");
         if (!hpet_verify(val)) break;
         tsc = read_tsc();
     }
@@ -366,11 +367,12 @@ hpet_expect(uint64_t val, uint64_t *tscp, unsigned long *deltap) {
 
     /* We require _some_ success, but the quality control
      * will be based on the error terms on the TSC values. */
+    //cprintf("expect: %d\n", count);
     return count > 6;
 }
 
 #define MAX_HPET_MS         25
-#define MAX_HPET_ITERATIONS (MAX_HPET_MS * hpet_get_freq() / 1000 / 256)
+#define MAX_HPET_ITERATIONS (MAX_HPET_MS * hpet_get_freq() / 1000 / 256 / 256)
 
 static unsigned long
 quick_hpet_calibrate(void) {
@@ -378,18 +380,23 @@ quick_hpet_calibrate(void) {
     uint64_t tsc, delta, start_cnt;
     unsigned long d1, d2;
 
-    start_cnt = (hpet_get_main_cnt() >> 8);
-    hpet_verify(start_cnt);
+    start_cnt = (hpet_get_main_cnt() >> 16);
+
     if (hpet_expect(start_cnt, &tsc, &d1)) {
         for (i = 1; i <= MAX_HPET_ITERATIONS; i++) {
 
-            if (!hpet_expect(start_cnt + i, &delta, &d2)) break;
+            if (!hpet_expect(start_cnt + i, &delta, &d2)) {
+                //cprintf("expect break\n");
+                break;
+            }
 
             delta -= tsc;
             if (d1 + d2 >= delta >> 11) continue;
 
-            if (!hpet_verify(start_cnt + i + 1)) break;
-
+            if (!hpet_verify(start_cnt + i + 1)) {
+                //cprintf("verify break\n");
+                break;
+            }
             goto success;
         }
     }
@@ -399,7 +406,7 @@ success:
 
     delta += (long)(d2 - d1) / 2;
     delta *= hpet_get_freq();
-    delta /= i * 256 * 1000;
+    delta /= i * 256 * 1000 * 256;
 
     return delta;
 }
@@ -428,7 +435,7 @@ hpet_cpu_frequency(void) {
 
 static inline int
 pm_verify(uint32_t val) {
-    return (pmtimer_get_timeval() >> 8) == val;
+    return (pmtimer_get_timeval() >> 12) == val;
 }
 
 static inline int
@@ -439,17 +446,19 @@ pm_expect(uint32_t val, uint64_t *tscp, unsigned long *deltap) {
     while (count++ < 50000) {
         if (!pm_verify(val)) break;
         tsc = read_tsc();
+        asm volatile("pause");
     }
     *deltap = read_tsc() - tsc;
     *tscp = tsc;
 
     /* We require _some_ success, but the quality control
      * will be based on the error terms on the TSC values. */
+    //cprintf("expect: %d\n", count);
     return count > 6;
 }
 
 #define MAX_PM_MS         25
-#define MAX_PM_ITERATIONS (MAX_PM_MS * PM_FREQ / 1000 / 256)
+#define MAX_PM_ITERATIONS (MAX_PM_MS * PM_FREQ / 1000 / 256 / 16)
 
 static unsigned long
 quick_pm_calibrate(void) {
@@ -457,18 +466,32 @@ quick_pm_calibrate(void) {
     uint64_t tsc, delta;
     unsigned long d1, d2;
 
-    uint32_t start_cnt = (pmtimer_get_timeval() >> 8);
+    FADT* fadt = get_fadt();
+    int is_24bit = 1;
+    if (fadt->Flags & (1 << 8)) {
+         is_24bit = 0;
+         cprintf("32 bits\n");
+    }
 
-    pm_verify(start_cnt);
+    //cprintf("Start:\n");
+
+    uint32_t start_cnt = (pmtimer_get_timeval() >> 12);
     if (pm_expect(start_cnt, &tsc, &d1)) {
-        for (i = 1; i <= MAX_HPET_ITERATIONS; i++) {
+        for (i = 1; i <= MAX_PM_ITERATIONS; i++) {
 
-            if (!pm_expect(start_cnt + i, &delta, &d2)) break;
+            uint32_t cur_cnt = start_cnt + i;
+
+            if (is_24bit && cur_cnt >= 1 << (24 - 12)) {
+                cur_cnt -= (1 << (24 - 12));
+                //cprintf("overflow\n");
+            }
+
+            if (!pm_expect(cur_cnt, &delta, &d2)) break;
 
             delta -= tsc;
             if (d1 + d2 >= delta >> 11) continue;
 
-            if (!pm_verify(start_cnt + i + 1)) break;
+            if (!pm_verify(cur_cnt + 1)) break;
 
             goto success;
         }
@@ -479,7 +502,7 @@ success:
 
     delta += (long)(d2 - d1) / 2;
     delta *= PM_FREQ;
-    delta /= i * 256 * 1000;
+    delta /= i * 256 * 1000 * 16;
 
     return delta;
 }
