@@ -12,6 +12,8 @@ static Header base = {.next = (Header *)space, .prev = (Header *)space};
 /* start of free list */
 static Header *freep = NULL;
 
+static struct spinlock lk;
+
 static void
 check_list(void) {
     asm volatile("cli");
@@ -31,7 +33,6 @@ test_alloc(uint8_t nbytes) {
     // LAB 5: Your code here:
 
     size_t nunits = (nbytes + sizeof(Header) - 1) / sizeof(Header) + 1;
-    static struct spinlock lk;
     spin_lock(&lk);
     /* no free list yet */
     if (!freep) {
@@ -80,7 +81,6 @@ test_free(void *ap) {
 
     /* Make allocator thread-safe with the help of spin_lock/spin_unlock. */
     // LAB 5: Your code here
-    static struct spinlock lk;
     spin_lock(&lk);
     /* freed block at start or end of arena */
     Header *p = freep;
