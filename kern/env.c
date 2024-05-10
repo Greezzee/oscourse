@@ -101,6 +101,16 @@ env_init(void) {
 
     /* Set up envs array */
 
+#ifdef CONFIG_KSPACE
+    assert(envs);
+#else
+    assert(current_space);
+    envs = kzalloc_region(NENV * sizeof(*envs));
+    memset(envs, 0, ROUNDUP(NENV * sizeof(*envs), PAGE_SIZE));
+
+    map_region(current_space, UENVS, &kspace, (uintptr_t)envs, UENVS_SIZE, PROT_R | PROT_USER_);
+#endif
+
     // LAB 3: Your code here
 
     env_free_list = &envs[0];
@@ -336,6 +346,8 @@ load_icode(struct Env *env, uint8_t *binary, size_t size) {
     if (elf_data->e_shstrndx >= elf_data->e_shnum)
         return -E_INVALID_EXE;
 
+    switch_address_space(&env->address_space);
+
     struct Proghdr* ph = (struct Proghdr*)(binary + elf_data->e_phoff);
     for (int counter = 0; counter < elf_data->e_phnum; counter++)
     {
@@ -347,6 +359,7 @@ load_icode(struct Env *env, uint8_t *binary, size_t size) {
             if (image_end == 0 || ph->p_va + ph->p_memsz > image_end)
                 image_end = ph->p_va + ph->p_memsz;
 
+            map_region(&env->address_space, ROUNDDOWN(ph->p_va, PAGE_SIZE), NULL, 0, ROUNDUP(ph->p_memsz, PAGE_SIZE), PROT_RWX | PROT_USER_ | ALLOC_ZERO);
             memcpy((void*)(ph->p_va), (void*)(binary + ph->p_offset), (size_t)(ph->p_filesz));
             memset((void*)(ph->p_va + ph->p_filesz), 0, (size_t)(ph->p_memsz - ph->p_filesz));
         }
@@ -354,12 +367,15 @@ load_icode(struct Env *env, uint8_t *binary, size_t size) {
         ph += 1;
     }
     env->binary = binary;
+    map_region(&env->address_space, USER_STACK_TOP - USER_STACK_SIZE, NULL, 0, USER_STACK_SIZE, PROT_R | PROT_W | PROT_USER_ | ALLOC_ZERO);
     env->env_tf.tf_rip = (uintptr_t) elf_data->e_entry;
 
+#ifdef CONFIG_KSPACE
     int err = bind_functions(env, binary, size, image_start, image_end);
     if (err < 0)
         panic("bind_functions: %i", err);
-
+#endif
+    switch_address_space(&kspace);
     return 0;
 }
 
@@ -385,6 +401,7 @@ env_create(uint8_t *binary, size_t size, enum EnvType type) {
 	// Load the program using the page directory of its environment.
 	load_icode(env, binary, size);
     // LAB 8: Your code here
+    env->binary = binary;
 }
 
 
@@ -433,6 +450,7 @@ env_destroy(struct Env *env) {
     /* Reset in_page_fault flags in case *current* environment
      * is getting destroyed after performing invalid memory access. */
     // LAB 8: Your code here
+    in_page_fault = 0;
 }
 
 #ifdef CONFIG_KSPACE
@@ -525,6 +543,7 @@ env_run(struct Env *env) {
 		curenv->env_status = ENV_RUNNING;
 		curenv->env_runs++;
 	}
+    switch_address_space(&curenv->address_space);
     env_pop_tf(&curenv->env_tf);
     // LAB 8: Your code here
 

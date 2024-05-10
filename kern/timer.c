@@ -89,14 +89,17 @@ acpi_find_table(const char *sign) {
      */
     // LAB 5: Your code here:
 
-    RSDP* acpi_rsdp = (RSDP*)uefi_lp->ACPIRoot;
+    if (!uefi_lp->ACPIRoot) {
+        panic ("No ACPI root!\n");
+    }
+
+    RSDP* acpi_rsdp = (RSDP*)mmio_map_region(uefi_lp->ACPIRoot, sizeof(RSDP));
 
     // check for currect
     if (strncmp(acpi_rsdp->Signature, "RSD PTR ", 8) != 0) {
         cprintf("Error: Bad acpi_rsdp signature: [%s]\n", acpi_rsdp->Signature);
         return NULL; // Incorrect signature of RSD
     }
-
     // checksum
     uint8_t* rsdp_bytes = (uint8_t*)acpi_rsdp;
     uint8_t checksum = 0;
@@ -107,27 +110,25 @@ acpi_find_table(const char *sign) {
         cprintf("Error: Bad acpi_rsdp checksum\n");
         return NULL; // Incorrect checksum
     }
-
     // getting rsdt
     RSDT* rsdt = NULL;
     if (acpi_rsdp->Revision == 0) {
         // ACPI 1.0, so using RSDT
-        rsdt = (RSDT*)(uint64_t)acpi_rsdp->RsdtAddress;
+        rsdt = (RSDT*)mmio_map_region((uint64_t)acpi_rsdp->RsdtAddress, sizeof(rsdt));
     }
     else if (acpi_rsdp->Revision == 2) {
         // ACPI 2.0 to 6.1, so using XSDT
-        rsdt = (RSDT*)acpi_rsdp->XsdtAddress;
+        rsdt = (RSDT*)mmio_map_region((uint64_t)acpi_rsdp->XsdtAddress, sizeof(rsdt));
     }
     else {
         cprintf("Error: Can't resolve this RSDP revision\n");
         return NULL; // Can't resolve this RSDP Revision
     }
-    
     int entries = (rsdt->h.Length - sizeof(rsdt->h)) / 8;
     ACPISDTHeader *h = NULL;
     for (i = 0; i < entries; i++)
     {
-        h = (ACPISDTHeader *)(uint64_t)rsdt->PointerToOtherSDT[i];
+        h = (ACPISDTHeader *)mmio_map_region((uint64_t)rsdt->PointerToOtherSDT[i], sizeof(ACPISDTHeader));
         if (!strncmp(h->Signature, sign, 4)) {
             break;
         }
@@ -145,12 +146,7 @@ acpi_find_table(const char *sign) {
         cprintf("Error: Bad rsdt checksum\n");
         return NULL; // Incorrect checksum
     }
-
-    const physaddr_t base_2mb = 0x200000;
-    void* acpi_table = mmio_map_region((physaddr_t)h, h->Length);
-    size_t old_len = (h->Length / base_2mb) * base_2mb;
-    old_len += h->Length % base_2mb ? base_2mb : 0;
-    return mmio_remap_last_region((physaddr_t)h, acpi_table, old_len, h->Length);
+    return h;
 }
 
 /* Obtain and map FADT ACPI table address. */

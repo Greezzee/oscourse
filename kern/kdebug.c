@@ -55,7 +55,19 @@ load_user_dwarf_info(struct Dwarf_Addrs *addrs) {
 
     /* Load debug sections from curenv->binary elf image */
     // LAB 8: Your code here
-    (void)sections;
+    struct Elf *elf = (struct Elf *)binary;
+
+    struct Secthdr *sh_start = (struct Secthdr *) (binary + elf->e_shoff);
+    struct Secthdr *sh_end = sh_start + elf->e_shnum;
+    char *shstr = (char *) binary + sh_start[elf->e_shstrndx].sh_offset;
+    for (struct Secthdr *sh = sh_start; sh < sh_end; ++sh) {
+        for (size_t i = 0; i < sizeof(sections) / sizeof(*sections); i++) {
+            if (!strcmp(sections[i].name, shstr + sh->sh_name)) {
+                *sections[i].start = binary + sh->sh_offset;
+                *sections[i].end = binary + sh->sh_offset + sh->sh_size;
+            }
+        }
+    }
 }
 
 #define UNKNOWN       "<unknown>"
@@ -83,7 +95,10 @@ debuginfo_rip(uintptr_t addr, struct Ripdebuginfo *info) {
     /* Temporarily load kernel cr3 and return back once done.
      * Make sure that you fully understand why it is necessary. */
 
-    // LAB 8: Your code here:
+    uintptr_t old_cr3 = rcr3();
+    if (old_cr3 != kspace.cr3) {
+        lcr3(kspace.cr3);
+    }
 
     /* Load dwarf section pointers from either
      * currently running program binary or use
@@ -94,7 +109,11 @@ debuginfo_rip(uintptr_t addr, struct Ripdebuginfo *info) {
     // LAB 8: Your code here:
 
     struct Dwarf_Addrs addrs;
-    load_kernel_dwarf_info(&addrs);
+    if (addr < MAX_USER_READABLE) {
+        load_user_dwarf_info(&addrs);
+    } else {
+        load_kernel_dwarf_info(&addrs);
+    }
 
     Dwarf_Off offset = 0, line_offset = 0;
     int res = info_by_address(&addrs, addr, &offset);
@@ -131,8 +150,17 @@ debuginfo_rip(uintptr_t addr, struct Ripdebuginfo *info) {
     strncpy(info->rip_fn_name, tmp_buf, RIPDEBUG_BUFSIZ);
     info->rip_fn_namelen = strlen(tmp_buf);
     info->rip_fn_addr = offs;
+    
+    if (old_cr3 != kspace.cr3) {
+        lcr3(old_cr3);
+    }
 
+    return 0;
 error:
+
+    if (old_cr3 != kspace.cr3) {
+        lcr3(old_cr3);
+    }
     return res;
 }
 

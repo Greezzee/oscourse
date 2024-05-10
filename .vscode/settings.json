@@ -1,11 +1,9 @@
 {
     "C_Cpp.errorSquiggles": "disabled",
     "files.associations": {
-        "*.inc": "c",
-        "numbers": "c",
+        "array": "c",
         "string_view": "c",
-        "string": "c",
-        "types.h": "c",
-        "trap.h": "c"
+        "initializer_list": "c",
+        "utility": "c"
     }
 }

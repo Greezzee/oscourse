@@ -143,20 +143,16 @@ i386_init(void) {
 
     /* Lab 6 memory management initialization functions */
     init_memory();
-
     pic_init();
     timers_init();
-
     /* Framebuffer init should be done after memory init */
     fb_init();
     if (trace_init) cprintf("Framebuffer initialised\n");
-
     trap_init();
     /* User environment initialization functions */
     env_init();
     /* Choose the timer used for scheduling: hpet or pit */
-    timers_schedule("pit");
-
+    timers_schedule("hpet0");
     //set_enable_schedule(0);
     //assert(false);
 #ifdef CONFIG_KSPACE
@@ -178,6 +174,7 @@ i386_init(void) {
     ENV_CREATE(TEST, ENV_TYPE_USER);
 #else
     /* Touch all you want. */
+    cprintf("Starting hello\n");
     ENV_CREATE(user_hello, ENV_TYPE_USER);
 #endif /* TEST* */
 #endif
