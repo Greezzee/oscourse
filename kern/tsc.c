@@ -6,6 +6,8 @@
 
 #include <kern/tsc.h>
 #include <kern/timer.h>
+#include <kern/trap.h>
+#include <kern/picirq.h>
 
 /* The clock frequency of the i8253/i8254 PIT */
 #define PIT_TICK_RATE 1193182ul
@@ -14,7 +16,8 @@
 
 struct Timer timer_pit = {
         .timer_name = "pit",
-        .get_cpu_freq = tsc_calibrate};
+        .get_cpu_freq = tsc_calibrate,
+        };
 
 /* Theres more commands but they are not used */
 
@@ -69,7 +72,6 @@ pit_expect_msb(unsigned char val, uint64_t *tscp, unsigned long *deltap) {
         if (!pit_verify_msb(val)) break;
         tsc = read_tsc();
     }
-
     *deltap = read_tsc() - tsc;
     *tscp = tsc;
 
@@ -188,6 +190,11 @@ print_timer_error(void) {
     cprintf("Timer Error\n");
 }
 
+void
+print_cpu_freq(uint64_t hz) {
+    cprintf("%lu\n", hz);
+}
+
 /* Use print_time function to print timert result
  * Use print_timer_error function to print error. */
 
@@ -200,16 +207,57 @@ static uint64_t freq = 0;
 
 void
 timer_start(const char *name) {
-    (void)timer_started;
-    (void)timer_id;
-    (void)timer;
-    (void)freq;
+    int i = 0;
+
+    for (; i < MAX_TIMERS; i++) {
+        if (strcmp(timertab[i].timer_name, name) == 0) {
+            timer_id = i;
+            break;
+        }
+    }
+    
+    if (i == MAX_TIMERS) {
+        print_timer_error();
+        return;
+    }
+
+    freq = timertab[timer_id].get_cpu_freq();
+    timer = read_tsc();
+
+    timer_started = 1;
 }
 
 void
 timer_stop(void) {
+    if (!timer_started || timer_id < 0 || timer_id >= MAX_TIMERS) {
+        print_timer_error();
+        return;
+    }
+
+    uint64_t end_timer = read_tsc();
+
+    print_time((end_timer - timer) / freq);
+
+    timer_started = 0;
 }
 
 void
 timer_cpu_frequency(const char *name) {
+    int i = 0;
+    int id = 0;
+    for (; i < MAX_TIMERS; i++) {
+        if (strcmp(timertab[i].timer_name, name) == 0) {
+            id = i;
+            break;
+        }
+    }
+    
+    if (i == MAX_TIMERS) {
+        print_timer_error();
+        return;
+    }
+
+    uint64_t cpu_freq = timertab[id].get_cpu_freq();
+
+    print_cpu_freq(cpu_freq);
 }

@@ -100,10 +100,72 @@ trapname(int trapno) {
 void
 trap_init(void) {
     // LAB 4: Your code here
+    extern void clock_thdlr();
+    idt[IRQ_OFFSET + IRQ_CLOCK] = GATE(0, GD_KT, clock_thdlr, 0);
     // LAB 5: Your code here
+
+    extern void timer_thdlr();
+    idt[IRQ_OFFSET + IRQ_TIMER] = GATE(0, GD_KT, timer_thdlr, 0);
 
     // LAB 8: Your code here
     /* Insert trap handlers into IDT */
+
+    extern void divide_thdlr(void);
+    idt[T_DIVIDE] = GATE(0, GD_KT, divide_thdlr, 0);
+
+    extern void debug_thdlr(void);
+    idt[T_DEBUG] = GATE(0, GD_KT, debug_thdlr, 0);
+
+    extern void nmi_thdlr(void);
+    idt[T_NMI] = GATE(0, GD_KT, nmi_thdlr, 0);
+
+    extern void brkpt_thdlr(void);
+    idt[T_BRKPT] = GATE(0, GD_KT, brkpt_thdlr, 3);
+
+    extern void oflow_thdlr(void);
+    idt[T_OFLOW] = GATE(0, GD_KT, oflow_thdlr, 0);
+
+    extern void bound_thdlr(void);
+    idt[T_BOUND] = GATE(0, GD_KT, bound_thdlr, 0);
+
+    extern void illop_thdlr(void);
+    idt[T_ILLOP] = GATE(0, GD_KT, illop_thdlr, 0);
+
+    extern void device_thdlr(void);
+    idt[T_DEVICE] = GATE(0, GD_KT, device_thdlr, 0);
+
+    extern void dblflt_thdlr(void);
+    idt[T_DBLFLT] = GATE(0, GD_KT, dblflt_thdlr, 0);
+
+    extern void tss_thdlr(void);
+    idt[T_TSS] = GATE(0, GD_KT, tss_thdlr, 0);
+
+    extern void segnp_thdlr(void);
+    idt[T_SEGNP] = GATE(0, GD_KT, segnp_thdlr, 0);
+
+    extern void stack_thdlr(void);
+    idt[T_STACK] = GATE(0, GD_KT, stack_thdlr, 0);
+
+    extern void gpflt_thdlr(void);
+    idt[T_GPFLT] = GATE(0, GD_KT, gpflt_thdlr, 0);
+
+    extern void pgflt_thdlr(void);
+    idt[T_PGFLT] = GATE(0, GD_KT, pgflt_thdlr, 0);
+
+    extern void fperr_thdlr(void);
+    idt[T_FPERR] = GATE(0, GD_KT, fperr_thdlr, 0);
+
+    extern void align_thdlr(void);
+    idt[T_ALIGN] = GATE(0, GD_KT, align_thdlr, 0);
+
+    extern void mchk_thdlr(void);
+    idt[T_MCHK] = GATE(0, GD_KT, mchk_thdlr, 0);
+
+    extern void simderr_thdlr(void);
+    idt[T_SIMDERR] = GATE(0, GD_KT, simderr_thdlr, 0);
+
+    extern void syscall_thdlr(void);
+    idt[T_SYSCALL] = GATE(0, GD_KT, syscall_thdlr, 3);
 
     /* Setup #PF handler dedicated stack
      * It should be switched on #PF because
@@ -214,6 +276,13 @@ print_regs(struct PushRegs *regs) {
     cprintf("  rax  0x%08lx\n", (unsigned long)regs->reg_rax);
 }
 
+int enable_schedule;
+
+void 
+set_enable_schedule(int val) {
+    enable_schedule = val;
+}
+
 static void
 trap_dispatch(struct Trapframe *tf) {
     switch (tf->tf_trapno) {
@@ -233,6 +302,7 @@ trap_dispatch(struct Trapframe *tf) {
         return;
     case T_BRKPT:
         // LAB 8: Your code here.
+        monitor(tf);
         return;
     case IRQ_OFFSET + IRQ_SPURIOUS:
         /* Handle spurious interrupts
@@ -245,8 +315,12 @@ trap_dispatch(struct Trapframe *tf) {
         return;
     case IRQ_OFFSET + IRQ_CLOCK:
     case IRQ_OFFSET + IRQ_TIMER:
-        // LAB 4: Your code here
         // LAB 5: Your code here
+        timer_for_schedule->handle_interrupts();
+
+        if (enable_schedule)
+            sched_yield();
+        
         return;
     default:
         print_trapframe(tf);

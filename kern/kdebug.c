@@ -4,11 +4,13 @@
 #include <inc/dwarf.h>
 #include <inc/elf.h>
 #include <inc/x86.h>
+#include <inc/error.h>
 
 #include <kern/kdebug.h>
 #include <kern/pmap.h>
 #include <kern/env.h>
 #include <inc/uefi.h>
+
 
 void
 load_kernel_dwarf_info(struct Dwarf_Addrs *addrs) {
@@ -53,7 +55,19 @@ load_user_dwarf_info(struct Dwarf_Addrs *addrs) {
 
     /* Load debug sections from curenv->binary elf image */
     // LAB 8: Your code here
-    (void)sections;
+    struct Elf *elf = (struct Elf *)binary;
+
+    struct Secthdr *sh_start = (struct Secthdr *) (binary + elf->e_shoff);
+    struct Secthdr *sh_end = sh_start + elf->e_shnum;
+    char *shstr = (char *) binary + sh_start[elf->e_shstrndx].sh_offset;
+    for (struct Secthdr *sh = sh_start; sh < sh_end; ++sh) {
+        for (size_t i = 0; i < sizeof(sections) / sizeof(*sections); i++) {
+            if (!strcmp(sections[i].name, shstr + sh->sh_name)) {
+                *sections[i].start = binary + sh->sh_offset;
+                *sections[i].end = binary + sh->sh_offset + sh->sh_size;
+            }
+        }
+    }
 }
 
 #define UNKNOWN       "<unknown>"
@@ -81,7 +95,10 @@ debuginfo_rip(uintptr_t addr, struct Ripdebuginfo *info) {
     /* Temporarily load kernel cr3 and return back once done.
      * Make sure that you fully understand why it is necessary. */
 
-    // LAB 8: Your code here:
+    uintptr_t old_cr3 = rcr3();
+    if (old_cr3 != kspace.cr3) {
+        lcr3(kspace.cr3);
+    }
 
     /* Load dwarf section pointers from either
      * currently running program binary or use
@@ -92,7 +109,11 @@ debuginfo_rip(uintptr_t addr, struct Ripdebuginfo *info) {
     // LAB 8: Your code here:
 
     struct Dwarf_Addrs addrs;
-    load_kernel_dwarf_info(&addrs);
+    if (addr < MAX_USER_READABLE) {
+        load_user_dwarf_info(&addrs);
+    } else {
+        load_kernel_dwarf_info(&addrs);
+    }
 
     Dwarf_Off offset = 0, line_offset = 0;
     int res = info_by_address(&addrs, addr, &offset);
@@ -109,6 +130,10 @@ debuginfo_rip(uintptr_t addr, struct Ripdebuginfo *info) {
      * Hint: use line_for_address from kern/dwarf_lines.c */
 
     // LAB 2: Your res here:
+    int line = 0;
+    res = line_for_address(&addrs, addr, line_offset, &line);
+    if (res < 0) goto error;
+    info->rip_line = line;
 
     /* Find function name corresponding to given address.
      * Hint: note that we need the address of `call` instruction, but rip holds
@@ -118,8 +143,24 @@ debuginfo_rip(uintptr_t addr, struct Ripdebuginfo *info) {
      * string returned by function_by_info will always be */
 
     // LAB 2: Your res here:
+    tmp_buf = NULL;
+    uintptr_t offs;
+    res = function_by_info(&addrs, addr - 5,  offset, &tmp_buf, &offs);
+    if (res < 0) goto error;
+    strncpy(info->rip_fn_name, tmp_buf, RIPDEBUG_BUFSIZ);
+    info->rip_fn_namelen = strlen(tmp_buf);
+    info->rip_fn_addr = offs;
+    
+    if (old_cr3 != kspace.cr3) {
+        lcr3(old_cr3);
+    }
 
+    return 0;
 error:
+
+    if (old_cr3 != kspace.cr3) {
+        lcr3(old_cr3);
+    }
     return res;
 }
 
@@ -132,6 +173,35 @@ find_function(const char *const fname) {
      * in assembly. */
 
     // LAB 3: Your code here:
+    struct Dwarf_Addrs addrs;
+    load_kernel_dwarf_info(&addrs);
 
-    return 0;
+    uintptr_t offset = 0;
+
+    int res = naive_address_by_fname(&addrs, fname, &offset);
+    if (res < 0)
+        res = address_by_fname(&addrs, fname, &offset);
+    
+    if (res < 0 && res != -E_NO_ENT)
+        panic("address_by_fname: %i", res);
+
+    if (offset != 0 && res == 0)
+        return offset;
+        
+    else
+    {
+        for (struct Elf64_Sym *kern_sym = (struct Elf64_Sym *)uefi_lp->SymbolTableStart;
+            (EFI_PHYSICAL_ADDRESS) kern_sym < uefi_lp->SymbolTableEnd; kern_sym++) {
+
+            const char *kern_sym_name = (const char *)(uefi_lp->StringTableStart + kern_sym->st_name);
+
+            if (!strcmp (kern_sym_name, fname))
+            {
+                offset = (uintptr_t) kern_sym->st_value;
+                return offset;
+            }
+        }
+    }
+    
+    return offset;
 }

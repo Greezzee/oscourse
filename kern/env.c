@@ -101,7 +101,25 @@ env_init(void) {
 
     /* Set up envs array */
 
+#ifdef CONFIG_KSPACE
+    assert(envs);
+#else
+    assert(current_space);
+    envs = kzalloc_region(NENV * sizeof(*envs));
+    memset(envs, 0, ROUNDUP(NENV * sizeof(*envs), PAGE_SIZE));
+
+    map_region(current_space, UENVS, &kspace, (uintptr_t)envs, UENVS_SIZE, PROT_R | PROT_USER_);
+#endif
+
     // LAB 3: Your code here
+
+    env_free_list = &envs[0];
+	envs[0].env_id = 0;
+	for (int i = 1; i < NENV; i++) {
+		envs[i - 1].env_link =  &envs[i];
+		envs[i].env_id = 0;
+	}
+	envs[NENV - 1].env_link = NULL;
 }
 
 /* Allocates and initializes a new environment.
@@ -162,7 +180,9 @@ env_alloc(struct Env **newenv_store, envid_t parent_id, enum EnvType type) {
     env->env_tf.tf_cs = GD_KT;
 
     // LAB 3: Your code here:
-    // static uintptr_t stack_top = 0x2000000;
+    static uintptr_t stack_top = 0x2000000;
+    env->env_tf.tf_rsp = stack_top;
+    stack_top += 2 * PAGE_SIZE;
 #else
     env->env_tf.tf_ds = GD_UD | 3;
     env->env_tf.tf_es = GD_UD | 3;
@@ -188,6 +208,19 @@ env_alloc(struct Env **newenv_store, envid_t parent_id, enum EnvType type) {
     return 0;
 }
 
+int overflow = 0;
+const void* sum_and_overflow(const void* ptr, size_t offset, size_t ptr_size, size_t size) {
+    if (size != 0 && (uintptr_t)ptr > UINTPTR_MAX - size)
+        overflow = 1;
+    if (UINTPTR_MAX / ptr_size <= offset)
+        overflow = 1;
+    if (UINTPTR_MAX - offset * ptr_size < (uintptr_t)ptr)
+        overflow = 1;
+    if (size != 0 && offset * ptr_size >= size)
+        overflow = 1;
+    return ptr + offset * ptr_size;
+}
+
 /* Pass the original ELF image to binary/size and bind all the symbols within
  * its loaded address space specified by image_start/image_end.
  * Make sure you understand why you need to check that each binding
@@ -199,8 +232,117 @@ bind_functions(struct Env *env, uint8_t *binary, size_t size, uintptr_t image_st
 
     /* NOTE: find_function from kdebug.c should be used */
 
+    const struct Elf* elf_data = (const struct Elf*) binary;
+
+    const struct Secthdr* sec_headers = (const struct Secthdr*)sum_and_overflow(binary, elf_data->e_shoff, sizeof(uint8_t), size);
+    if (overflow)
+        panic("bind_functions: sec_headers address overflow\n");
+
+    const uint16_t sec_headers_num  = (const uint16_t) elf_data->e_shnum;
+
+    int16_t string_tab_ind = -1;
+
+    sum_and_overflow(sec_headers, sec_headers_num, sizeof(struct Secthdr), size);
+    if (overflow)
+        panic("bind_functions: sec_headers + sec_headers_num address overflow\n");
+    // Got section headers, start parsing it -------------------------------------
+    for (uint16_t sec_header_iter = 0; sec_header_iter < sec_headers_num; sec_header_iter++)
+    {
+        const struct Secthdr* cur_sec_header = (const struct Secthdr*)(sec_headers + sec_header_iter);
+        if (overflow)
+            panic("bind_functions: cur_sec_header address overflow\n");
+
+        if (cur_sec_header->sh_type == ELF_SHT_STRTAB)
+        {
+            if (sec_header_iter == elf_data->e_shstrndx)
+                continue;
+
+            string_tab_ind = (int16_t) sec_header_iter;
+            break;
+        }
+    }
+
+    if (string_tab_ind == -1)
+        return -E_INVALID_EXE;
+    // found SHSTRTAB section with functions names ----------------------------------------
+    uint16_t strung_tab_ind_u = (uint16_t)string_tab_ind;
+    const struct Secthdr* string_tab_hdr = (const struct Secthdr*)(sec_headers + strung_tab_ind_u);
+
+    const char* string_tab = (const char*)sum_and_overflow(binary, string_tab_hdr->sh_offset, sizeof(uint8_t), size);
+    sum_and_overflow(binary, string_tab_hdr->sh_offset + string_tab_hdr->sh_size, sizeof(uint8_t), size);
+    if (overflow)
+        return -E_INVALID_EXE;
+    // got string table ---------------------------------
+
+    // parsing over SYMTABs 
+    for (uint16_t sec_header_iter = 0; sec_header_iter < sec_headers_num; sec_header_iter++)
+    {
+        const struct Secthdr* cur_sec_header = (const struct Secthdr*)(sec_headers + sec_header_iter);
+        if (overflow)
+            return -E_INVALID_EXE;
+
+        if (cur_sec_header->sh_type != ELF_SHT_SYMTAB)
+            continue;
+
+        if (cur_sec_header->sh_size == 0)
+            continue;
+
+        const struct Elf64_Sym* sym_tab = (const struct Elf64_Sym*)sum_and_overflow(binary, cur_sec_header->sh_offset, sizeof(uint8_t), size);
+        sum_and_overflow(binary, cur_sec_header->sh_offset + cur_sec_header->sh_size, sizeof(uint8_t), size);
+        if (overflow)
+            return -E_INVALID_EXE;
+
+        size_t sym_num = (size_t) (cur_sec_header->sh_size / sizeof(struct Elf64_Sym));
+
+        sum_and_overflow(sym_tab, sym_num, sizeof(struct Elf64_Sym), size);
+        if (overflow)
+            return -E_INVALID_EXE;
+        // parsing symtab symbols
+        for (size_t sym_iter = 0; sym_iter < sym_num; sym_iter++)
+        {
+            const struct Elf64_Sym* cur_sym = (const struct Elf64_Sym*)(sym_tab + sym_iter);
+            uint8_t st_info = cur_sym->st_info;
+
+            if ((ELF64_ST_TYPE(st_info) != STT_OBJECT) 
+             || (ELF64_ST_BIND(st_info) != STB_GLOBAL))
+                continue;
+
+            if (cur_sym->st_name == 0)
+                continue;
+            // finding symbol name in strtab
+            const char* sym_name = (const char*)sum_and_overflow(string_tab, cur_sym->st_name, sizeof(char), size);
+            if (overflow)
+                return -E_INVALID_EXE;
+
+            size_t sym_off = 0;
+            size_t str_size = cur_sym->st_size ? cur_sym->st_size : string_tab_hdr->sh_size;
+            if (str_size > string_tab_hdr->sh_size)
+                panic("bind_functions: str_size is too big\n");
+            for (;sym_off < str_size; sym_off++) {
+                if (sym_name[sym_off] == '\0')
+                    break;
+            }
+            if (sym_off == string_tab_hdr->sh_size)
+               return -E_INVALID_EXE;
+
+            uintptr_t sym_value = (uintptr_t) cur_sym->st_value;
+            // check if it is in image
+            if ((sym_value < image_start) || (sym_value > image_end))
+                return -E_INVALID_EXE;
+
+            if (*(uintptr_t*) sym_value != 0)
+                continue;
+            // find function with name
+            uintptr_t offset = find_function(sym_name);
+            if (offset == 0)
+                continue;
+            // bind function with found one
+            *(uintptr_t*)sym_value = offset;       
+        }
+    }
     return 0;
 }
+
 
 /* Set up the initial program binary, stack, and processor flags
  * for a user process.
@@ -246,6 +388,63 @@ static int
 load_icode(struct Env *env, uint8_t *binary, size_t size) {
     // LAB 3: Your code here
     // LAB 8: Your code here
+    struct Elf* elf_data = (struct Elf*) binary;
+    uintptr_t image_start = 0;
+    uintptr_t image_end = 0;
+
+    if (elf_data->e_magic != ELF_MAGIC)
+        return -E_INVALID_EXE;
+
+    if (elf_data->e_shentsize != sizeof(struct Secthdr))
+        return -E_INVALID_EXE;
+
+    if (elf_data->e_phentsize != sizeof(struct Proghdr))
+        return -E_INVALID_EXE;
+        
+    if (elf_data->e_shstrndx >= elf_data->e_shnum)
+        return -E_INVALID_EXE;
+
+    switch_address_space(&env->address_space);
+
+    struct Proghdr* ph = (struct Proghdr*)sum_and_overflow(binary, elf_data->e_phoff, sizeof(uint8_t), size);
+    if (overflow)
+        panic("load_icode: ph address overflow\n");
+    for (int counter = 0; counter < elf_data->e_phnum; counter++)
+    {
+        if (ph->p_type == ELF_PROG_LOAD)
+        {
+            if (image_start == 0 || ph->p_va < image_start)
+                image_start = ph->p_va;
+            sum_and_overflow((void*)ph->p_va, ph->p_memsz, sizeof(UINT64), 0);
+            if (overflow)
+                panic("load_icode: image_end address overflow\n");
+            if (image_end == 0 || ph->p_va + ph->p_memsz > image_end)
+                image_end = ph->p_va + ph->p_memsz;
+
+            sum_and_overflow(binary, ph->p_offset, sizeof(uint8_t), size);
+            if (overflow)
+                panic("load_icode: binary + ph->p_offset address overflow\n");
+            sum_and_overflow((void*)ph->p_va, ph->p_filesz, sizeof(UINT64), 0);
+            if (overflow)
+                panic("load_icode: ph->p_va + ph->p_filesz address overflow\n");
+
+            map_region(&env->address_space, ROUNDDOWN(ph->p_va, PAGE_SIZE), NULL, 0, ROUNDUP(ph->p_memsz, PAGE_SIZE), PROT_RWX | PROT_USER_ | ALLOC_ZERO);
+            memcpy((void*)(ph->p_va), (void*)(binary + ph->p_offset), (size_t)(ph->p_filesz));
+            memset((void*)(ph->p_va + ph->p_filesz), 0, (size_t)(ph->p_memsz - ph->p_filesz));
+        }
+        
+        ph += 1;
+    }
+    env->binary = binary;
+    map_region(&env->address_space, USER_STACK_TOP - USER_STACK_SIZE, NULL, 0, USER_STACK_SIZE, PROT_R | PROT_W | PROT_USER_ | ALLOC_ZERO);
+    env->env_tf.tf_rip = (uintptr_t) elf_data->e_entry;
+
+#ifdef CONFIG_KSPACE
+    int err = bind_functions(env, binary, size, image_start, image_end);
+    if (err < 0)
+        panic("bind_functions: %i", err);
+#endif
+    switch_address_space(&kspace);
     return 0;
 }
 
@@ -258,7 +457,20 @@ load_icode(struct Env *env, uint8_t *binary, size_t size) {
 void
 env_create(uint8_t *binary, size_t size, enum EnvType type) {
     // LAB 3: Your code here
+
+    if (!binary)
+		panic("env_create: null pointer 'binary'\n");
+
+	// Allocate an environment.
+	struct Env *env;
+	int r;
+	if ((r = env_alloc(&env, 0, type)) < 0)
+		panic("env_create: %i\n", r);
+
+	// Load the program using the page directory of its environment.
+	load_icode(env, binary, size);
     // LAB 8: Your code here
+    env->binary = binary;
 }
 
 
@@ -299,9 +511,15 @@ env_destroy(struct Env *env) {
 
     // LAB 3: Your code here
 
+    env_free(env);
+
+    if (env == curenv)
+        sched_yield(); // call scheduler to run new enviroment
+
     /* Reset in_page_fault flags in case *current* environment
      * is getting destroyed after performing invalid memory access. */
     // LAB 8: Your code here
+    in_page_fault = 0;
 }
 
 #ifdef CONFIG_KSPACE
@@ -385,6 +603,17 @@ env_run(struct Env *env) {
     }
 
     // LAB 3: Your code here
+
+    if (curenv != env) 
+    { // Context switch.
+		if (curenv && curenv->env_status == ENV_RUNNING)
+			curenv->env_status = ENV_RUNNABLE;
+		curenv = env;
+		curenv->env_status = ENV_RUNNING;
+		curenv->env_runs++;
+	}
+    switch_address_space(&curenv->address_space);
+    env_pop_tf(&curenv->env_tf);
     // LAB 8: Your code here
 
     while (1)
