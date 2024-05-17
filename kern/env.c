@@ -512,14 +512,13 @@ env_destroy(struct Env *env) {
     // LAB 3: Your code here
 
     env_free(env);
-
-    if (env == curenv)
-        sched_yield(); // call scheduler to run new enviroment
-
     /* Reset in_page_fault flags in case *current* environment
      * is getting destroyed after performing invalid memory access. */
     // LAB 8: Your code here
     in_page_fault = 0;
+    if (env == curenv)
+        sched_yield(); // call scheduler to run new enviroment
+
 }
 
 #ifdef CONFIG_KSPACE
