@@ -81,6 +81,40 @@ int
 mon_backtrace(int argc, char **argv, struct Trapframe *tf) {
     // LAB 2: Your code here
 
+    // Read_ebp returns the current value of the ebp register. This first value will not be on the stack. 
+	uint64_t current_bp_v = read_rbp();
+	// The value of current_bp_v turned into an address is a pointer to the previous bp
+	uint64_t *prev_bp_p = (uint64_t *) current_bp_v;
+	
+	uint64_t final_bp_v = 0x0;
+	
+	// Print all relevant items within current_bp_p stack frame. 
+	while(current_bp_v != final_bp_v) 
+	{	
+		uint64_t rip_v = *(prev_bp_p + 1);
+		uint64_t *rip_p = (uint64_t *) rip_v;
+		
+		struct Ripdebuginfo info;
+		debuginfo_rip( rip_v, &info);
+		
+		cprintf("rbp %016lx  rip %016lx\n", 
+			current_bp_v, 
+			rip_v);
+			
+		int offset = (uint64_t)rip_p - info.rip_fn_addr; 
+			
+		cprintf("\t %s:%d: %.*s+%d \n", info.rip_file, info.rip_line, info.rip_fn_namelen, info.rip_fn_name, offset);
+
+		current_bp_v = *prev_bp_p;
+		prev_bp_p = (uint64_t *) current_bp_v;
+	}
+
+    return 0;
+}
+
+int
+mon_rand_text(int argc, char **argv, struct Trapframe *tf) {
+    cprintf("bruh\n");
     return 0;
 }
 
@@ -89,16 +123,31 @@ mon_backtrace(int argc, char **argv, struct Trapframe *tf) {
 
 int
 mon_start(int argc, char **argv, struct Trapframe *tf) {
+    if (argc < 2) {
+        cprintf("Incorrect args\n");
+        return 1;
+    }
+
+    timer_start(argv[1]);
+
     return 0;
 }
 
 int
 mon_stop(int argc, char **argv, struct Trapframe *tf) {
+    timer_stop();
     return 0;
 }
 
 int
 mon_frequency(int argc, char **argv, struct Trapframe *tf) {
+    if (argc < 2) {
+        cprintf("Incorrect args\n");
+        return 1;
+    }
+
+    timer_cpu_frequency(argv[1]);
+
     return 0;
 }
 
@@ -106,6 +155,7 @@ mon_frequency(int argc, char **argv, struct Trapframe *tf) {
 /* Implement memory (mon_memory) commands. */
 int
 mon_memory(int argc, char **argv, struct Trapframe *tf) {
+    dump_memory_lists();
     return 0;
 }
 
@@ -133,6 +183,16 @@ mon_dumpcmos(int argc, char **argv, struct Trapframe *tf) {
     // Hint: Use cmos_read8()/cmos_write8() functions.
     // LAB 4: Your code here
 
+    uint8_t i;
+    for (i = 0; i < 128; i++) {
+        if (i % 16 == 0) {
+            if (i > 0)
+                cprintf("\n");
+            cprintf("%02x: ", i);
+        }
+        cprintf("%02x ", cmos_read8(i));
+    }
+    cprintf("\n");
     return 0;
 }
 
