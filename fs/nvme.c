@@ -22,6 +22,10 @@ nvme_map(struct NvmeController *ctl) {
      *      and sys_map_physical_region() might be useful here */
     // LAB 10: Your code here
 
+    uintptr_t nvme_pa = get_bar_address(ctl->pcidev, 0);
+    uint32_t memsize = get_bar_size(ctl->pcidev, 0);
+    sys_map_physical_region(bar_addr, )
+    ctr->mmio_base_addr
 
     DEBUG("NVMe MMIO base = %p, size = %x, pa = %lx", ctl->mmio_base_addr, memsize, nvme_pa);
 

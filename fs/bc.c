@@ -34,6 +34,16 @@ bc_pgfault(struct UTrapframe *utf) {
      * the disk. */
     // LAB 10: Your code here
 
+    addr = ROUNDDOWN(addr, BLKSIZE);
+    int res;
+    if ((res = sys_alloc_region(0, addr, BLKSIZE, PTE_U | PTE_W)) < 0) {
+        panic("Error while allocating region in bc_pgfault: %i", res);
+    }
+
+    if ((res = nvme_read(blockno * BLKSECTS, addr, BLKSECTS)) < 0) {
+        panic("Error while reading in bc_pgfault: %i", res);
+    }
+
     return 1;
 }
 
@@ -47,7 +57,6 @@ bc_pgfault(struct UTrapframe *utf) {
 void
 flush_block(void *addr) {
     blockno_t blockno = ((uintptr_t)addr - (uintptr_t)DISKMAP) / BLKSIZE;
-    int res;
 
     if (addr < (void *)(uintptr_t)DISKMAP || addr >= (void *)(uintptr_t)(DISKMAP + DISKSIZE))
         panic("flush_block of bad va %p", addr);
@@ -55,7 +64,19 @@ flush_block(void *addr) {
         panic("reading non-existent block %08x out of %08x\n", blockno, super->s_nblocks);
 
     // LAB 10: Your code here.
-    (void)res;
+    addr = ROUNDDOWN(addr, BLKSIZE);
+    if (!is_page_present(addr) || !is_page_dirty(addr)) {
+        return;
+    }
+
+    int res;
+    if ((res = nvme_write(blockno * BLKSECTS, addr, BLKSECTS)) < 0) {
+        panic("Error while writing in flush_block: %i", res);
+    }
+
+    if ((res = sys_map_region(0, addr, 0, addr, BLKSIZE, get_prot(addr) & PTE_SYSCALL)) < 0) {
+        panic("Error while clearing dirty flag in flush_block: %i", res);
+    }
 
 
     assert(!is_page_dirty(addr));
