@@ -255,6 +255,7 @@ print_trapframe(struct Trapframe *tf) {
     cprintf("  flag 0x%08lx\n", (unsigned long)tf->tf_rflags);
     cprintf("  rsp  0x%08lx\n", (unsigned long)tf->tf_rsp);
     cprintf("  ss   0x----%04x\n", tf->tf_ss);
+    //panic("AAAA NEGRI");
 }
 
 void

@@ -105,6 +105,7 @@ asan_unpoison_shared_region(void *start, void *end, void *arg) {
 
 void
 platform_asan_init(void) {
+
     asan_internal_shadow_start = (uint8_t *)SANITIZE_USER_SHADOW_BASE;
     asan_internal_shadow_end = (uint8_t *)SANITIZE_USER_SHADOW_BASE + SANITIZE_USER_SHADOW_SIZE;
     asan_internal_shadow_off = (uint8_t *)SANITIZE_USER_SHADOW_OFF;
@@ -146,7 +147,7 @@ platform_asan_init(void) {
 
 void
 platform_asan_fatal(const char *msg, uptr p, size_t width, unsigned access_type) {
-    ASAN_LOG("Fatal error: %s (addr 0x%lx within i/o size 0x%lx of type %u), tracing:",
+    ASAN_LOG("User Fatal error: %s (addr 0x%lx within i/o size 0x%lx of type %u), tracing:",
              msg, (long)p, (long)width, access_type);
 
     ASAN_DEBUG_BREAK();
