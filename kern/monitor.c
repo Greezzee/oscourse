@@ -86,10 +86,10 @@ mon_backtrace(int argc, char **argv, struct Trapframe *tf) {
 	// The value of current_bp_v turned into an address is a pointer to the previous bp
 	uint64_t *prev_bp_p = (uint64_t *) current_bp_v;
 	
-	uint64_t final_bp_v = 0x0;
+	//uint64_t final_bp_v = 0x0;
 	
 	// Print all relevant items within current_bp_p stack frame. 
-	while(current_bp_v != final_bp_v) 
+	while(1) 
 	{	
 		uint64_t rip_v = *(prev_bp_p + 1);
 		uint64_t *rip_p = (uint64_t *) rip_v;
