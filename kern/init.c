@@ -175,7 +175,7 @@ i386_init(void) {
 #else
     /* Touch all you want. */
     cprintf("Starting hello\n");
-    ENV_CREATE(user_hello, ENV_TYPE_USER);
+    ENV_CREATE(user_faultread, ENV_TYPE_USER);
 #endif /* TEST* */
 #endif
     /* Schedule and run the first user environment! */
