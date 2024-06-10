@@ -277,13 +277,6 @@ print_regs(struct PushRegs *regs) {
     cprintf("  rax  0x%08lx\n", (unsigned long)regs->reg_rax);
 }
 
-int enable_schedule;
-
-void 
-set_enable_schedule(int val) {
-    enable_schedule = val;
-}
-
 static void
 trap_dispatch(struct Trapframe *tf) {
     switch (tf->tf_trapno) {
@@ -320,8 +313,7 @@ trap_dispatch(struct Trapframe *tf) {
         // LAB 5: Your code here
         timer_for_schedule->handle_interrupts();
 
-        if (enable_schedule)
-            sched_yield();
+        sched_yield();
         
         return;
     default:
@@ -492,13 +484,13 @@ page_fault_handler(struct Trapframe *tf) {
     /* Build local copy of UTrapframe */
     // LAB 9: Your code here:
 
-    struct UTrapframe *utf = (struct UTrapframe*) ursp;
-    utf->utf_fault_va = cr2;
-    utf->utf_err = tf->tf_err;
-    utf->utf_regs = tf->tf_regs;
-    utf->utf_rip = tf->tf_rip;
-    utf->utf_rflags = tf->tf_rflags;
-    utf->utf_rsp = tf->tf_rsp;
+    struct UTrapframe utf;
+    utf.utf_fault_va = cr2;
+    utf.utf_err = tf->tf_err;
+    utf.utf_regs = tf->tf_regs;
+    utf.utf_rip = tf->tf_rip;
+    utf.utf_rflags = tf->tf_rflags;
+    utf.utf_rsp = tf->tf_rsp;
     tf->tf_rsp = ursp;
     tf->tf_rip = (uintptr_t)curenv->env_pgfault_upcall;
 
@@ -507,7 +499,7 @@ page_fault_handler(struct Trapframe *tf) {
 
     struct AddressSpace *old = switch_address_space(&curenv->address_space);
     set_wp(0);
-    nosan_memcpy((void *)ursp, (void *)utf, sizeof(struct UTrapframe));
+    nosan_memcpy((void *)ursp, (void *)&utf, sizeof(struct UTrapframe));
     set_wp(1);
     switch_address_space(old);
 

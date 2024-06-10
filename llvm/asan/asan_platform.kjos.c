@@ -36,7 +36,6 @@ platform_abort() {
 
 void
 platform_asan_init() {
-    ASAN_LOG("Kernel init\n");
     asan_internal_shadow_start = (uint8_t *)SANITIZE_SHADOW_BASE - 0x40000000;
     asan_internal_shadow_end = (uint8_t *)(SANITIZE_SHADOW_SIZE + SANITIZE_SHADOW_BASE);
     asan_internal_shadow_off = (uint8_t *)SANITIZE_SHADOW_OFF;
