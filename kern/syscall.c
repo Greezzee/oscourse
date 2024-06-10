@@ -24,7 +24,15 @@ sys_cputs(const char *s, size_t len) {
     /* Check that the user has permission to read memory [s, s+len).
      * Destroy the environment if not. */
     user_mem_assert(curenv, s, len, PROT_R | PROT_USER_);
+
+    #ifdef SANITIZE_SHADOW_BASE
+    platform_asan_unpoison((void *)s, len + 1);
+    #endif
     cprintf("%.*s", (int)len, s);
+    #ifdef SANITIZE_SHADOW_BASE
+    platform_asan_poison((void *)s, len + 1);
+    #endif
+
     return 0;
 }
 
@@ -98,6 +106,7 @@ sys_exofork(void) {
     }
     env->env_status = ENV_NOT_RUNNABLE;
     env->env_tf = curenv->env_tf;
+    env->binary = curenv->binary;
     env->env_tf.tf_regs.reg_rax = 0;
     return env->env_id;
 }
@@ -344,28 +353,25 @@ sys_map_physical_region(uintptr_t pa, envid_t envid, uintptr_t va, size_t size, 
 static int
 sys_ipc_try_send(envid_t envid, uint32_t value, uintptr_t srcva, size_t size, int perm) {
     // LAB 9: Your code here
-    struct Env *env;
-    if (envid2env(envid, &env, 0)) {
-        return -E_BAD_ENV;
-    }
+    if ((srcva < MAX_USER_ADDRESS && PAGE_OFFSET(srcva)) ||
+        (srcva < MAX_USER_ADDRESS && perm & ~PROT_ALL) ||
+        (srcva < MAX_USER_ADDRESS && (perm & PROT_W) && user_mem_check(curenv, (void *)srcva, size, PROT_W) < 0))
+        return -E_INVAL;
 
-    if (!env->env_ipc_recving) {
+    struct Env *env;
+    if (envid2env(envid, &env, 0))
+        return -E_BAD_ENV;
+    if (!env->env_ipc_recving)
         return -E_IPC_NOT_RECV;
-    }
+    env->env_ipc_recving = false;
 
     if (srcva < MAX_USER_ADDRESS && env->env_ipc_dstva < MAX_USER_ADDRESS) {
-        if (PAGE_OFFSET(srcva)) {
+        if (PAGE_OFFSET(srcva) ||
+            PAGE_OFFSET(env->env_ipc_dstva) ||
+            perm & ~(ALLOC_ONE | ALLOC_ZERO | PROT_ALL))
             return -E_INVAL;
-        }
-        if (PAGE_OFFSET(env->env_ipc_dstva)) {
+        if ((perm & PROT_W) && user_mem_check(curenv, (void *)srcva, size, PROT_W) < 0)
             return -E_INVAL;
-        }
-        if (perm & ~(ALLOC_ONE | ALLOC_ZERO | PROT_ALL)) {
-            return -E_INVAL;
-        }
-        if ((perm & PROT_W) && user_mem_check(curenv, (void *)srcva, size, PROT_W) < 0) {
-            return -E_INVAL;
-        }
 
         size_t actual_size = MIN(size, env->env_ipc_maxsz);
         if (map_region(&env->address_space, env->env_ipc_dstva, &curenv->address_space, srcva, actual_size, perm | PROT_USER_)) {
@@ -377,13 +383,12 @@ sys_ipc_try_send(envid_t envid, uint32_t value, uintptr_t srcva, size_t size, in
     } else {
         env->env_ipc_perm = 0;
     }
-
     env->env_ipc_value = value;
     env->env_ipc_from = curenv->env_id;
-    env->env_ipc_recving = 0;
     env->env_status = ENV_RUNNABLE;
     return 0;
 }
+
 
 /* Block until a value is ready.  Record that you want to receive
  * using the env_ipc_recving, env_ipc_maxsz and env_ipc_dstva fields of struct Env,
@@ -401,14 +406,12 @@ sys_ipc_try_send(envid_t envid, uint32_t value, uintptr_t srcva, size_t size, in
 static int
 sys_ipc_recv(uintptr_t dstva, uintptr_t maxsize) {
     // LAB 9: Your code here
-    if (PAGE_OFFSET(maxsize)) {
+    if (PAGE_OFFSET(maxsize))
         return -E_INVAL;
-    }
-    if (dstva < MAX_USER_ADDRESS && (PAGE_OFFSET(dstva) || maxsize == 0)) {
+    if (dstva < MAX_USER_ADDRESS && (PAGE_OFFSET(dstva) || maxsize == 0))
         return -E_INVAL;
-    }
 
-    curenv->env_ipc_recving = 1;
+    curenv->env_ipc_recving = true;
     curenv->env_status = ENV_NOT_RUNNABLE;
     if (dstva < MAX_USER_ADDRESS) {
         curenv->env_ipc_dstva = dstva;

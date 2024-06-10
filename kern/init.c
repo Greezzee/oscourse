@@ -178,7 +178,6 @@ i386_init(void) {
 #endif /* TEST* */
 #endif
     /* Schedule and run the first user environment! */
-    set_enable_schedule(1);
     sched_yield();
 }
 
