@@ -1141,7 +1141,7 @@ int
 map_physical_region(struct AddressSpace *dst, uintptr_t dstart, uintptr_t pstart, size_t size, int flags) {
     if (trace_memory) cprintf("Mapping physical region [%08lX, %08lX] to [%08lX, %08lX] (flags=%x)\n",
                               pstart, pstart + (long)size - 1, dstart, dstart + (long)size - 1, flags);
-    assert(dstart > MAX_USER_ADDRESS || dst == &kspace);
+    assert(dstart > MAX_USER_ADDRESS || dst == &kspace || (flags & MAP_USER_MMIO && dstart <= MAX_USER_ADDRESS && dst != &kspace));
 
     int class = 0, res;
 

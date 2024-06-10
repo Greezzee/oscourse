@@ -113,27 +113,43 @@ acpi_find_table(const char *sign) {
         return NULL; // Incorrect checksum
     }
     // getting rsdt
-    RSDT* rsdt = NULL;
+    ACPISDTHeader *h = NULL;
+    int entries = 0;
     if (acpi_rsdp->Revision == 0) {
         // ACPI 1.0, so using RSDT
+        RSDT* rsdt = NULL;
         rsdt = (RSDT*)mmio_map_region((uint64_t)acpi_rsdp->RsdtAddress, sizeof(rsdt));
+        rsdt = (RSDT*)mmio_remap_last_region((physaddr_t)acpi_rsdp->RsdtAddress, rsdt, sizeof(rsdt), rsdt->h.Length);
+
+        entries = (rsdt->h.Length - sizeof(rsdt->h)) / sizeof(uint32_t);
+        for (i = 0; i < entries; i++)
+        {   
+            h = (ACPISDTHeader *)mmio_map_region((uint64_t)rsdt->PointerToOtherSDT[i], sizeof(ACPISDTHeader));
+            h = (ACPISDTHeader *)mmio_remap_last_region((uint64_t)rsdt->PointerToOtherSDT[i], h, sizeof(ACPISDTHeader), h->Length);
+            if (!strncmp(h->Signature, sign, 4)) {
+                break;
+            }
+        }
     }
     else if (acpi_rsdp->Revision == 2) {
         // ACPI 2.0 to 6.1, so using XSDT
-        rsdt = (RSDT*)mmio_map_region((uint64_t)acpi_rsdp->XsdtAddress, sizeof(rsdt));
+        XSDT* rsdt = NULL;
+        rsdt = (XSDT*)mmio_map_region(acpi_rsdp->XsdtAddress, sizeof(rsdt));
+        rsdt = (XSDT*)mmio_remap_last_region((physaddr_t)acpi_rsdp->XsdtAddress, rsdt, sizeof(rsdt), rsdt->h.Length);
+
+        entries = (rsdt->h.Length - sizeof(rsdt->h)) / sizeof(uint64_t);
+        for (i = 0; i < entries; i++)
+        {   
+            h = (ACPISDTHeader *)mmio_map_region((uint64_t)rsdt->PointerToOtherSDT[i], sizeof(ACPISDTHeader));
+            h = (ACPISDTHeader *)mmio_remap_last_region((uint64_t)rsdt->PointerToOtherSDT[i], h, sizeof(ACPISDTHeader), h->Length);
+            if (!strncmp(h->Signature, sign, 4)) {
+                break;
+            }
+        }
     }
     else {
         cprintf("Error: Can't resolve this RSDP revision\n");
         return NULL; // Can't resolve this RSDP Revision
-    }
-    int entries = (rsdt->h.Length - sizeof(rsdt->h)) / 8;
-    ACPISDTHeader *h = NULL;
-    for (i = 0; i < entries; i++)
-    {
-        h = (ACPISDTHeader *)mmio_map_region((uint64_t)rsdt->PointerToOtherSDT[i], sizeof(ACPISDTHeader));
-        if (!strncmp(h->Signature, sign, 4)) {
-            break;
-        }
     }
     if (i == entries) {
         cprintf("Error: Can't find acpisht header with sign [%.4s]\n", sign);
