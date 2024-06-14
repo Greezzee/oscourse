@@ -17,6 +17,7 @@
 #include <kern/env.h>
 #include <kern/pmap.h>
 #include <kern/trap.h>
+#include <kern/sched.h>
 
 #define WHITESPACE "\t\r\n "
 #define MAXARGS    16
@@ -32,6 +33,7 @@ int mon_frequency(int argc, char **argv, struct Trapframe *tf);
 int mon_memory(int argc, char **argv, struct Trapframe *tf);
 int mon_pagetable(int argc, char **argv, struct Trapframe *tf);
 int mon_virt(int argc, char **argv, struct Trapframe *tf);
+int mon_continue(int argc, char **argv, struct Trapframe *tf);
 
 struct Command {
     const char *name;
@@ -51,6 +53,7 @@ static struct Command commands[] = {
         {"memory", "Display allocated memory pages", mon_memory},
         {"pagetable", "Display current page table", mon_pagetable},
         {"virt", "Display virtual memory tree", mon_virt},
+        {"continue", "Go back to running enviroment", mon_continue}
 };
 #define NCOMMANDS (sizeof(commands) / sizeof(commands[0]))
 
@@ -61,6 +64,10 @@ mon_help(int argc, char **argv, struct Trapframe *tf) {
     for (size_t i = 0; i < NCOMMANDS; i++)
         cprintf("%s - %s\n", commands[i].name, commands[i].desc);
     return 0;
+}
+
+int mon_continue(int argc, char **argv, struct Trapframe *tf) {
+    sched_yield();
 }
 
 int

@@ -94,7 +94,6 @@ devcons_write(struct Fd *fd, const void *vbuf, size_t n) {
         memmove(buf, (char *)vbuf + res, inc);
         sys_cputs(buf, inc);
     }
-
     return res;
 }
 

@@ -208,7 +208,10 @@ static uint64_t freq = 0;
 void
 timer_start(const char *name) {
     int i = 0;
-
+    if (timer_started) {
+        cprintf("Timer is already started\n");
+        return;
+    }
     for (; i < MAX_TIMERS; i++) {
         if (strcmp(timertab[i].timer_name, name) == 0) {
             timer_id = i;
@@ -221,6 +224,10 @@ timer_start(const char *name) {
         return;
     }
 
+    if (!timertab[timer_id].get_cpu_freq) {
+        cprintf("You can't use this timer to calculate cpu frequency\n");
+        return;
+    }
     freq = timertab[timer_id].get_cpu_freq();
     timer = read_tsc();
 
@@ -256,7 +263,10 @@ timer_cpu_frequency(const char *name) {
         print_timer_error();
         return;
     }
-
+    if (!timertab[id].get_cpu_freq) {
+        cprintf("You can't use this timer to calculate cpu frequency\n");
+        return;
+    }
     uint64_t cpu_freq = timertab[id].get_cpu_freq();
 
     print_cpu_freq(cpu_freq);

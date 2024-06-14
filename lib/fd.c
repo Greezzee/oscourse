@@ -205,25 +205,19 @@ readn(int fdnum, void *buf, size_t n) {
 ssize_t
 write(int fdnum, const void *buf, size_t n) {
     int res;
-
     struct Fd *fd;
     if ((res = fd_lookup(fdnum, &fd)) < 0) return res;
-
     struct Dev *dev;
     if ((res = dev_lookup(fd->fd_dev_id, &dev)) < 0) return res;
-
     if ((fd->fd_omode & O_ACCMODE) == O_RDONLY) {
         cprintf("[%08x] write %d -- bad mode\n", thisenv->env_id, fdnum);
         return -E_INVAL;
     }
-
     if (debug) {
         cprintf("write %d %p %lu via dev %s\n",
                 fdnum, buf, (unsigned long)n, dev->dev_name);
     }
-
     if (!dev->dev_write) return -E_NOT_SUPP;
-
     return (*dev->dev_write)(fd, buf, n);
 }
 

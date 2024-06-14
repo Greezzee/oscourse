@@ -249,9 +249,13 @@ get_fadt(void) {
     // (use acpi_find_table)
     // HINT: ACPI table signatures are
     //       not always as their names
-
-    RSDT* rsdt = acpi_find_table("FACP");
-    return (FADT*)rsdt;
+    static FADT *rsdt = NULL;
+    if (!rsdt) {
+        struct AddressSpace *as = switch_address_space(&kspace);
+        rsdt = acpi_find_table("FACP");
+        switch_address_space(as);
+    }
+    return rsdt;
 }
 
 /* Obtain and map RSDP ACPI table address. */
@@ -260,7 +264,12 @@ get_hpet(void) {
     // LAB 5: Your code here
     // (use acpi_find_table)
 
-    RSDT* rsdt = acpi_find_table("HPET");
+    static RSDT *rsdt = NULL;
+    if (!rsdt) {
+        struct AddressSpace *as = switch_address_space(&kspace);
+        rsdt = acpi_find_table("HPET");
+        switch_address_space(as);
+    }
     return (HPET*)rsdt;
 }
 
@@ -382,7 +391,7 @@ hpet_enable_interrupts_tim0(void) {
     hpetReg->TIM0_CONF |= HPET_TN_INT_ENB_CNF;
     
     uint64_t clk_period = hpetReg->GCAP_ID >> 32; // reading clock period in femptoseconds
-    uint64_t timer_in_fs = 5 * 1e14; // 0.5 s in fs
+    uint64_t timer_in_fs = 5 * 1e12; // 0.005 s in fs
     uint64_t periods = timer_in_fs / clk_period;
     // setting clock period
     hpetReg->TIM0_CONF |= HPET_TN_VAL_SET_CNF;
@@ -408,7 +417,7 @@ hpet_enable_interrupts_tim1(void) {
     hpetReg->TIM1_CONF |= HPET_TN_INT_ENB_CNF;
     
     uint64_t clk_period = hpetReg->GCAP_ID >> 32; // reading clock period in femptoseconds
-    uint64_t timer_in_fs = 15 * 1e14; // 1.5 s in fs
+    uint64_t timer_in_fs = 15 * 1e12; // 0.015 s in fs
     uint64_t periods = timer_in_fs / clk_period;
     // setting clock period
     hpetReg->TIM1_CONF |= HPET_TN_VAL_SET_CNF;

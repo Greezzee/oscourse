@@ -113,8 +113,12 @@ devfile_read(struct Fd *fd, void *buf, size_t n) {
      * system server. */
 
     // LAB 10: Your code here:
-    size_t i;
-    for (i = 0; i < n;) {
+    if (!fd || !buf) {
+        return -E_INVAL;
+    }
+
+    size_t i = 0;
+    while (n) {
         fsipcbuf.read.req_fileid = fd->fd_file.id;
         fsipcbuf.read.req_n = n;
         int ret;
@@ -125,6 +129,7 @@ devfile_read(struct Fd *fd, void *buf, size_t n) {
         memcpy(buf, fsipcbuf.readRet.ret_buf, ret);
 
         buf += ret;
+        n -= ret;
         i += ret;
     }
 
@@ -145,8 +150,12 @@ devfile_write(struct Fd *fd, const void *buf, size_t n) {
      * potentially required. */
 
     // LAB 10: Your code here:
-    size_t i;
-    for (i = 0; i < n;) {
+    if (!fd || !buf) {
+        return -E_INVAL;
+    }
+
+    size_t i = 0;
+    while (n) {
         size_t next = MIN(n, sizeof(fsipcbuf.write.req_buf));
 
         memcpy(fsipcbuf.write.req_buf, buf, next);
@@ -159,6 +168,7 @@ devfile_write(struct Fd *fd, const void *buf, size_t n) {
         }
 
         buf += ret;
+        n -= ret;
         i += ret;
     }
     return i;

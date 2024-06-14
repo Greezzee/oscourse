@@ -5,6 +5,7 @@
         "string_view": "c",
         "initializer_list": "c",
         "utility": "c",
-        "lib.h": "c"
+        "lib.h": "c",
+        "assert.h": "c"
     }
 }

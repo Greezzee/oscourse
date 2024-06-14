@@ -248,6 +248,7 @@ usage(void) {
 
 void
 umain(int argc, char **argv) {
+
     int r, interactive, echocmds;
     struct Argstate args;
 

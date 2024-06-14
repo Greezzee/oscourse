@@ -308,6 +308,7 @@ trap_dispatch(struct Trapframe *tf) {
     case T_BRKPT:
         // LAB 8: Your code here.
         monitor(tf);
+        //env_destroy(curenv);
         return;
     case IRQ_OFFSET + IRQ_SPURIOUS:
         /* Handle spurious interrupts

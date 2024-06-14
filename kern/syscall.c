@@ -13,6 +13,7 @@
 #include <kern/syscall.h>
 #include <kern/trap.h>
 #include <kern/traceopt.h>
+#include <kern/monitor.h>
 
 /* Print a string to the system console.
  * The string is exactly 'len' characters long.
@@ -486,6 +487,13 @@ sys_region_refs(uintptr_t addr, size_t size, uintptr_t addr2, size_t size2) {
     }
 }
 
+static int 
+sys_monitor() {
+    monitor(NULL);
+
+    return 0;
+}
+
 /* Dispatches to the correct kernel function, passing the arguments. */
 uintptr_t
 syscall(uintptr_t syscallno, uintptr_t a1, uintptr_t a2, uintptr_t a3, uintptr_t a4, uintptr_t a5, uintptr_t a6) {
@@ -530,6 +538,8 @@ syscall(uintptr_t syscallno, uintptr_t a1, uintptr_t a2, uintptr_t a3, uintptr_t
         return sys_env_set_trapframe((envid_t)a1, (struct Trapframe *)a2);
     case SYS_gettime:
         return sys_gettime();
+    case SYS_monitor:
+        return sys_monitor();
     }
     
     // LAB 10: Your code here
