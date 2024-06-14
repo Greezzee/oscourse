@@ -167,6 +167,12 @@ trap_init(void) {
     extern void syscall_thdlr(void);
     idt[T_SYSCALL] = GATE(0, GD_KT, syscall_thdlr, 3);
 
+    extern void kbd_thdlr(void);
+    idt[IRQ_OFFSET + IRQ_KBD] = GATE(0, GD_KT, kbd_thdlr, 3);
+
+    extern void serial_thdlr(void);
+    idt[IRQ_OFFSET + IRQ_SERIAL] = GATE(0, GD_KT, serial_thdlr, 3);
+
     /* Setup #PF handler dedicated stack
      * It should be switched on #PF because
      * #PF is the only kind of exception that
@@ -321,6 +327,14 @@ trap_dispatch(struct Trapframe *tf) {
         // LAB 11: Your code here
         /* Handle keyboard (IRQ_KBD + kbd_intr()) and
          * serial (IRQ_SERIAL + serial_intr()) interrupts. */
+    case IRQ_OFFSET + IRQ_KBD:
+        kbd_intr();
+        sched_yield();
+        return;
+    case IRQ_OFFSET + IRQ_SERIAL:
+        serial_intr();
+        sched_yield();
+        return;
     default:
         print_trapframe(tf);
         if (!(tf->tf_cs & 3))
@@ -399,7 +413,7 @@ trap(struct Trapframe *tf) {
     /* Copy trap frame (which is currently on the stack)
      * into 'curenv->env_tf', so that running the environment
      * will restart at the trap point */
-    curenv->env_tf = *tf;
+    nosan_memcpy((void *)&curenv->env_tf, (void *)tf, sizeof(struct Trapframe));
     /* The trapframe on the stack should be ignored from here on */
     tf = &curenv->env_tf;
 
@@ -511,9 +525,7 @@ page_fault_handler(struct Trapframe *tf) {
     /* Reset in_page_fault flag */
     // LAB 9: Your code here:
 
-    if (envs->env_tf.tf_trapno == T_PGFLT) {
-        in_page_fault = 0;
-    }
+    in_page_fault = 0;
 
     /* Rerun current environment */
     // LAB 9: Your code here:

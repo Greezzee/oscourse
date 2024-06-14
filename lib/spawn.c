@@ -119,7 +119,6 @@ spawn(const char *prog, const char **argv) {
         if (ph->p_flags & ELF_PROG_FLAG_WRITE) perm |= PROT_W;
         if (ph->p_flags & ELF_PROG_FLAG_READ) perm |= PROT_R;
         if (ph->p_flags & ELF_PROG_FLAG_EXEC) perm |= PROT_X;
-
         if ((res = map_segment(child, ph->p_va, ph->p_memsz,
                                fd, ph->p_filesz, ph->p_offset, perm)) < 0)
             goto error;
@@ -153,9 +152,9 @@ error2:
 int
 spawnl(const char *prog, const char *arg0, ...) {
     /* We calculate argc by advancing the args until we hit NULL.
-     * The contract of the function guarantees that the last
-     * argument will always be NULL, and that none of the other
-     * arguments will be NULL. */
+    * The contract of the function guarantees that the last
+    * argument will always be NULL, and that none of the other
+    * arguments will be NULL. */
     int argc = 0;
     va_list vl;
     va_start(vl, arg0);
@@ -163,7 +162,7 @@ spawnl(const char *prog, const char *arg0, ...) {
     va_end(vl);
 
     /* Now that we have the size of the args, do a second pass
-     * and store the values in a VLA, which has the format of argv */
+    * and store the values in a VLA, which has the format of argv */
     const char *argv[argc + 2];
     argv[0] = arg0;
     argv[argc + 1] = NULL;
@@ -193,7 +192,7 @@ init_stack(envid_t child, const char **argv, struct Trapframe *tf) {
     uintptr_t *argv_store;
 
     /* Count the number of arguments (argc)
-     * and the total amount of space needed for strings (string_size). */
+    * and the total amount of space needed for strings (string_size). */
     string_size = 0;
     for (argc = 0; argv[argc] != 0; argc++)
         string_size += strlen(argv[argc]) + 1;
@@ -265,7 +264,7 @@ static int
 map_segment(envid_t child, uintptr_t va, size_t memsz,
             int fd, size_t filesz, off_t fileoffset, int perm) {
 
-    // cprintf("map_segment %x+%x\n", va, memsz);
+    //cprintf("map_segment %x+%x\n", va, memsz);
 
     /* Fixup unaligned destination */
     int res = PAGE_OFFSET(va);
@@ -275,17 +274,38 @@ map_segment(envid_t child, uintptr_t va, size_t memsz,
         filesz += res;
         fileoffset -= res;
     }
-
-    // LAB 11: Your code here
-    /* NOTE: There's restriction on maximal filesz
-     * for each program segment (HUGE_PAGE_SIZE) */
-
+    if (!filesz)
+        filesz = 1;
     /* Allocate filesz - memsz in child */
+    if (memsz > filesz && (res = sys_alloc_region(child, (void *)ROUNDUP(va + filesz, PAGE_SIZE), memsz, perm)) < 0) {
+        return res;
+    }
+
     /* Allocate filesz in parent to UTEMP */
+    if ((res = sys_alloc_region(0, UTEMP, ROUNDUP(filesz, PAGE_SIZE), PTE_P | PTE_U | PTE_W)) < 0) {
+        cprintf("Allocating %lu\n", filesz);
+        return res;
+    }
+
     /* seek() fd to fileoffset  */
+    if ((res = seek(fd, fileoffset)) < 0) {
+        return res;
+    }
+
     /* read filesz to UTEMP */
-    /* Map read section conents to child */
+    if ((res = readn(fd, UTEMP, filesz)) < 0) {
+        return res;
+    }
+
+    /* Map read section contents to child */
+    if ((res = sys_map_region(0, UTEMP, child, (void *)va, ROUNDUP(filesz, PAGE_SIZE), perm)) < 0) {
+        return res;
+    }
+
     /* Unmap it from parent */
+    if ((res = sys_unmap_region(0, UTEMP, ROUNDUP(filesz, PAGE_SIZE))) < 0) {
+        return res;
+    }
 
     return 0;
 }
