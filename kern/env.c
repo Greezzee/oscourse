@@ -129,6 +129,10 @@ env_init(void) {
 		envs[i].env_id = 0;
 	}
 	envs[NENV - 1].env_link = NULL;
+
+    vsys = kzalloc_region(UVSYS_SIZE);
+    memset((void *)vsys, 0, ROUNDUP(UVSYS_SIZE, PAGE_SIZE));
+    map_region(current_space, UVSYS, &kspace, (uintptr_t)vsys, UVSYS_SIZE, PROT_R | PROT_USER_);
 }
 
 /* Allocates and initializes a new environment.
