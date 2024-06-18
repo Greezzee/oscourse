@@ -13,7 +13,9 @@ umain(int argc, char **argv) {
     for (i = 1; i < argc; i++) {
         if (i > 1)
             write(1, " ", 1);
-        write(1, argv[i], strlen(argv[i]));
+        int res = write(1, argv[i], strlen(argv[i]));
+        if (res < 0)
+            panic("write error copying \"%s\": %i", argv[i], res);
     }
     if (!nflag)
         write(1, "\n", 1);

@@ -164,6 +164,7 @@ devfile_write(struct Fd *fd, const void *buf, size_t n) {
 
         int ret;
         if ((ret = fsipc(FSREQ_WRITE, NULL)) < 0) {
+            //cprintf("AAAAAA NEGRI\n");
             return ret;
         }
 

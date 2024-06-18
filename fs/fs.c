@@ -352,37 +352,6 @@ file_read(struct File *f, void *buf, size_t count, off_t offset) {
     return count;
 }
 
-/* Write count bytes from buf into f, starting at seek position
- * offset.  This is meant to mimic the standard pwrite function.
- * Extends the file if necessary.
- * Returns the number of bytes written, < 0 on error. */
-ssize_t
-file_write(struct File *f, const void *buf, size_t count, off_t offset) {
-    int res;
-    off_t old_size = f->f_size;
-
-    /* Extend file if necessary */
-    if (offset + count > f->f_size)
-        if ((res = file_set_size(f, offset + count)) < 0) return res;
-
-    for (off_t pos = offset; pos < offset + count;) {
-        char *blk;
-        if ((res = file_get_block(f, pos / BLKSIZE, &blk)) < 0) return res;
-
-        if ((res = file_get_block(f, pos / BLKSIZE, &blk)) < 0) {
-            file_set_size(f, old_size);
-            return res;
-        }
-
-        blockno_t bn = MIN(BLKSIZE - pos % BLKSIZE, offset + count - pos);
-        memmove(blk + pos % BLKSIZE, buf, bn);
-        pos += bn;
-        buf += bn;
-    }
-
-    return count;
-}
-
 /* Remove a block from file f.  If it's not there, just silently succeed.
  * Returns 0 on success, < 0 on error. */
 static int
@@ -396,6 +365,54 @@ file_free_block(struct File *f, blockno_t filebno) {
         *ptr = 0;
     }
     return 0;
+}
+
+/* Write count bytes from buf into f, starting at seek position
+ * offset.  This is meant to mimic the standard pwrite function.
+ * Extends the file if necessary.
+ * Returns the number of bytes written, < 0 on error. */
+ssize_t
+file_write(struct File *f, const void *buf, size_t count, off_t offset) {
+    int res;
+    off_t old_size = f->f_size;
+
+    /* Extend file if necessary */
+    if (offset + count > f->f_size)
+        if ((res = file_set_size(f, offset + count)) < 0) {
+            //cprintf("If error\n");
+            return res;
+        }
+
+    for (off_t pos = offset; pos < offset + count;) {
+        char *blk;
+        if ((res = file_get_block(f, pos / BLKSIZE, &blk)) < 0) {
+            file_set_size(f, old_size);
+            for (off_t new_pos = offset; new_pos < offset + count;) {
+                file_free_block(f, new_pos / BLKSIZE);
+                blockno_t bn = MIN(BLKSIZE - new_pos % BLKSIZE, offset + count - new_pos);
+                new_pos += bn;
+            }
+            //cprintf("%s Cycle error\n", f->f_name);
+            return res;
+        }
+
+        // if ((res = file_get_block(f, pos / BLKSIZE, &blk)) < 0) {
+        //     file_set_size(f, old_size);
+        //     for (off_t new_pos = offset; new_pos < offset + count;) {
+        //         file_free_block(f, new_pos / BLKSIZE);
+        //         blockno_t bn = MIN(BLKSIZE - new_pos % BLKSIZE, offset + count - new_pos);
+        //         new_pos += bn;
+        //     }
+        //     return res;
+        // }
+
+        blockno_t bn = MIN(BLKSIZE - pos % BLKSIZE, offset + count - pos);
+        memmove(blk + pos % BLKSIZE, buf, bn);
+        pos += bn;
+        buf += bn;
+    }
+
+    return count;
 }
 
 /* Remove any blocks currently used by file 'f',

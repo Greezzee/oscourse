@@ -7,11 +7,13 @@ cat(int f, char *s) {
     long n;
     int r;
 
-    while ((n = read(f, buf, (long)sizeof(buf))) > 0)
-        if ((r = write(1, buf, n)) != n)
-            panic("write error copying %s: %i", s, r);
+    while ((n = read(f, buf, (long)sizeof(buf))) > 0) {
+        //cprintf("try to write %ld\n", n);
+        if ((r = write(1, buf, n)) != n) 
+            panic("write error copying %s\n: %i", s, r);
+    }
     if (n < 0)
-        panic("error reading %s: %i", s, (int)n);
+        panic("error reading %s: %i\n", s, (int)n);
 }
 
 void
