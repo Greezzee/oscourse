@@ -472,6 +472,10 @@ kbd_proc_data(void) {
         outb(0x92, 0x3);
     }
 
+    if (!(~shift & CTL) && c == C('C')) {
+        asm volatile("int3");
+    }
+
     return c;
 }
 
@@ -510,6 +514,7 @@ cons_intr(int (*proc)(void)) {
 
     while ((ch = (*proc)()) != -1) {
         if (!ch) continue;
+        //cprintf("%c\n", ch);
         cons.buf[cons.wpos++] = ch;
         if (cons.wpos == CONSBUFSIZE) cons.wpos = 0;
     }

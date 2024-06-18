@@ -104,11 +104,11 @@ acpi_find_table(const char *sign) {
     }
     // checksum
     uint8_t* rsdp_bytes = (uint8_t*)acpi_rsdp;
-    uint8_t checksum = 0;
-    int i = 0;
+    uint32_t checksum = 0;
+    uint32_t i = 0;
     for (; i < acpi_rsdp->Length; i++)
-        checksum += rsdp_bytes[i];
-    if (checksum != 0) {
+        checksum = checksum + (uint8_t)(rsdp_bytes[i]);
+    if (checksum % 256 != 0u) {
         cprintf("Error: Bad acpi_rsdp checksum\n");
         return NULL; // Incorrect checksum
     }
@@ -157,10 +157,10 @@ acpi_find_table(const char *sign) {
     }
     // do checksum for ACPI table
     checksum = 0;
-    for (int i = 0; i < h->Length; i++)
-        checksum += ((char *)h)[i];
+    for (uint32_t i = 0; i < h->Length; i++)
+        checksum += ((uint8_t *)h)[i];
     
-    if (checksum != 0) {
+    if (checksum % 256 != 0u) {
         cprintf("Error: Bad rsdt checksum\n");
         return NULL; // Incorrect checksum
     }

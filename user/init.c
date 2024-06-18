@@ -55,7 +55,7 @@ umain(int argc, char **argv) {
     if ((r = dup(0, 1)) < 0)
         panic("dup: %i", r);
     while (1) {
-        cprintf("init: starting sh\n");
+        cprintf("\n");
         r = spawnl("/sh", "sh", (char *)0);
         if (r < 0) {
             cprintf("init: spawn sh: %i\n", r);

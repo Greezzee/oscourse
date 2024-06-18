@@ -104,6 +104,10 @@ again:
             panic("| not implemented");
             break;
 
+        case '(': case ')': case ';': case '&':
+            cprintf("Unexpected token: %c\n", c);
+            goto again;
+
         case 0: /* String is complete */
             /* Run the current command! */
             goto runit;

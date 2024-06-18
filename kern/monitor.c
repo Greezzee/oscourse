@@ -167,16 +167,18 @@ mon_memory(int argc, char **argv, struct Trapframe *tf) {
 }
 
 /* Implement mon_pagetable() and mon_virt()
- * (using dump_virtual_tree(), dump_page_table())*/
+* (using dump_virtual_tree(), dump_page_table())*/
 int
 mon_pagetable(int argc, char **argv, struct Trapframe *tf) {
-    // LAB 7: Your code here
+// LAB 7: Your code here
+    dump_page_table(kspace.pml4);
     return 0;
 }
 
 int
 mon_virt(int argc, char **argv, struct Trapframe *tf) {
-    // LAB 7: Your code here
+// LAB 7: Your code here
+    dump_virtual_tree(kspace.root, MAX_CLASS);
     return 0;
 }
 
