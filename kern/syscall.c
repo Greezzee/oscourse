@@ -14,6 +14,8 @@
 #include <kern/trap.h>
 #include <kern/traceopt.h>
 #include <kern/monitor.h>
+#include <kern/timer.h>
+#include <kern/ipc.h>
 
 /* Print a string to the system console.
  * The string is exactly 'len' characters long.
@@ -371,32 +373,30 @@ sys_ipc_try_send(envid_t envid, uint32_t value, uintptr_t srcva, size_t size, in
         return -E_BAD_ENV;
     if (!env->env_ipc_recving)
         return -E_IPC_NOT_RECV;
-    env->env_ipc_recving = false;
 
-    if (srcva < MAX_USER_ADDRESS && env->env_ipc_dstva < MAX_USER_ADDRESS) {
-        if (PAGE_OFFSET(srcva) ||
-            PAGE_OFFSET(env->env_ipc_dstva) ||
-            perm & ~(ALLOC_ONE | ALLOC_ZERO | PROT_ALL))
-            return -E_INVAL;
-        if ((perm & PROT_W) && user_mem_check(curenv, (void *)srcva, size, PROT_W) < 0)
-            return -E_INVAL;
-
-        size_t actual_size = MIN(size, env->env_ipc_maxsz);
-        if (map_region(&env->address_space, env->env_ipc_dstva, &curenv->address_space, srcva, actual_size, perm | PROT_USER_)) {
-            return -E_NO_MEM;
-        }
-
-        env->env_ipc_maxsz = actual_size;
-        env->env_ipc_perm = perm;
-    } else {
-        env->env_ipc_perm = 0;
-    }
-    env->env_ipc_value = value;
-    env->env_ipc_from = curenv->env_id;
-    env->env_status = ENV_RUNNABLE;
-    return 0;
+    return ipc_send(env, curenv, value, srcva, size, perm);
 }
 
+static int
+sys_ipc_try_send_timed(envid_t envid, uint32_t value, uintptr_t srcva, size_t size, int perm, uint64_t timeout) {
+
+    if ((srcva < MAX_USER_ADDRESS && PAGE_OFFSET(srcva)) ||
+        (srcva < MAX_USER_ADDRESS && perm & ~PROT_ALL) ||
+        (srcva < MAX_USER_ADDRESS && (perm & PROT_W) && user_mem_check(curenv, (void *)srcva, size, PROT_W) < 0))
+        return -E_INVAL;
+
+    struct Env *env;
+    if (envid2env(envid, &env, 0))
+        return -E_BAD_ENV;
+
+    if (!env->env_ipc_recving) {
+        ipc_prepare_send_timed(envid, value, srcva, size, perm, timeout);
+        curenv->env_tf.tf_regs.reg_rax = 0;
+        sched_yield();
+    }
+    
+    return ipc_send(env, curenv, value, srcva, size, perm); // recv env is ready to receive, so skipping timeout waiting
+}
 
 /* Block until a value is ready.  Record that you want to receive
  * using the env_ipc_recving, env_ipc_maxsz and env_ipc_dstva fields of struct Env,
@@ -420,6 +420,39 @@ sys_ipc_recv(uintptr_t dstva, uintptr_t maxsize) {
         return -E_INVAL;
 
     curenv->env_ipc_recving = true;
+    curenv->env_status = ENV_NOT_RUNNABLE;
+    if (dstva < MAX_USER_ADDRESS) {
+        curenv->env_ipc_dstva = dstva;
+        curenv->env_ipc_maxsz = maxsize;
+    }
+    curenv->env_tf.tf_regs.reg_rax = 0;
+    sched_yield();
+    return 0;
+}
+
+/* Block until a value is ready.  Record that you want to receive
+ * using the env_ipc_recving, env_ipc_maxsz and env_ipc_dstva fields of struct Env,
+ * mark yourself not runnable, and then give up the CPU.
+ *
+ * If 'dstva' is < MAX_USER_ADDRESS, then you are willing to receive a page of data.
+ * 'dstva' is the virtual address at which the sent page should be mapped.
+ *
+ * This function only returns on error, but the system call will eventually
+ * return 0 on success.
+ * Return < 0 on error.  Errors are:
+ *  -E_INVAL if dstva < MAX_USER_ADDRESS but dstva is not page-aligned;
+ *  -E_INVAL if dstva is valid and maxsize is 0,
+ *  -E_INVAL if maxsize is not page aligned. */
+static int
+sys_ipc_recv_timed(uintptr_t dstva, uintptr_t maxsize, uint64_t timeout) {
+    if (PAGE_OFFSET(maxsize))
+        return -E_INVAL;
+    if (dstva < MAX_USER_ADDRESS && (PAGE_OFFSET(dstva) || maxsize == 0))
+        return -E_INVAL;
+
+    curenv->env_ipc_recving = true;
+    curenv->env_ipc_timeout = read_tsc() + timeout * get_cpu_freq("hpet0") / 1000;
+
     curenv->env_status = ENV_NOT_RUNNABLE;
     if (dstva < MAX_USER_ADDRESS) {
         curenv->env_ipc_dstva = dstva;
@@ -466,7 +499,7 @@ sys_env_set_trapframe(envid_t envid, struct Trapframe *tf) {
 static int
 sys_gettime(void) {
     // LAB 12: Your code here
-    return gettime();;
+    return gettime();
 }
 
 /*
@@ -540,6 +573,10 @@ syscall(uintptr_t syscallno, uintptr_t a1, uintptr_t a2, uintptr_t a3, uintptr_t
         return sys_gettime();
     case SYS_monitor:
         return sys_monitor();
+    case SYS_ipc_recv_timed:
+        return sys_ipc_recv_timed(a1, a2, a3);
+    case SYS_ipc_try_send_timed:
+        return sys_ipc_try_send_timed((envid_t)a1, (uint32_t)a2, a3,(size_t)a4,(int)a5, a6);
     }
     
     // LAB 10: Your code here

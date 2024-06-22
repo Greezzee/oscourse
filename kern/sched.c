@@ -31,6 +31,9 @@ sched_yield(void) {
         if (next_env == envs + NENV) {
             next_env = envs;
         }
+        if (next_env->env_status == ENV_NOT_RUNNABLE) {
+            env_process_not_runnable(next_env);
+        }
         if (next_env->env_status == ENV_RUNNABLE) {
             break;
         }

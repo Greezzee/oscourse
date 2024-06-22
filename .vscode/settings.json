@@ -7,6 +7,11 @@
         "utility": "c",
         "lib.h": "c",
         "assert.h": "c",
-        "*.tcc": "c"
+        "*.tcc": "c",
+        "*.inc": "c",
+        "typeinfo": "c",
+        "thread": "c",
+        "syscall.h": "c",
+        "console.h": "c"
     }
 }

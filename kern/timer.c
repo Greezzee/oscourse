@@ -67,6 +67,26 @@ struct Timer timer_acpipm = {
         .get_cpu_freq = pmtimer_cpu_frequency,
 };
 
+uint64_t 
+get_cpu_freq(const char* timer_name) {
+    int i = 0;
+    int id = 0;
+    for (; i < MAX_TIMERS; i++) {
+        if (strcmp(timertab[i].timer_name, timer_name) == 0) {
+            id = i;
+            break;
+        }
+    }
+    
+    if (i == MAX_TIMERS) {
+        panic("Timer %s does not exist!\n", timer_name);
+    }
+    if (!timertab[id].get_cpu_freq) {
+        panic("Timer %s can't be used to calculate cpu freq!\n", timer_name);
+    }
+    return timertab[id].get_cpu_freq();
+}
+
 void
 acpi_enable(void) {
     FADT *fadt = get_fadt();

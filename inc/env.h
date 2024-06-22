@@ -77,11 +77,15 @@ struct Env {
 
     /* LAB 9 IPC */
     bool env_ipc_recving;    /* Env is blocked receiving */
+    bool env_ipc_sending;    /* Env is blocked sending. If true, env_ipc_maxsz, env_ipc_value is info about sent data */
     uintptr_t env_ipc_dstva; /* VA at which to map received page */
-    size_t env_ipc_maxsz;    /* maximal size of received region */
-    uint32_t env_ipc_value;  /* Data value sent to us */
+    uintptr_t env_ipc_srcva; /* VA at which to map sent page */
+    size_t env_ipc_maxsz;    /* maximal size of received/sent region */
+    uint32_t env_ipc_value;  /* Data value sent to us / by us */
     envid_t env_ipc_from;    /* envid of the sender */
-    int env_ipc_perm;        /* Perm of page mapping received */
+    envid_t env_ipc_to;      /* envid of the receiver */
+    int env_ipc_perm;        /* Perm of page mapping received/sent */
+    uint64_t env_ipc_timeout;/* value of tsc when ipc recv/send is timeouted. 0 if there are no timeout */
 };
 
 #endif /* !JOS_INC_ENV_H */
