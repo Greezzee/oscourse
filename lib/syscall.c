@@ -166,6 +166,11 @@ sys_ipc_recv_timed(void *dstva, size_t size, uint64_t timeout) {
 }
 
 int
+sys_sleep(uint64_t timeout) {
+    return syscall(SYS_sleep, 0, timeout, 0, 0, 0, 0, 0);
+}
+
+int
 sys_gettime(void) {
     return syscall(SYS_gettime, 0, 0, 0, 0, 0, 0, 0);
 }

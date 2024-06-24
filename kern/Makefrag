@@ -36,7 +36,7 @@ KERN_SRCFILES := kern/bootstrap.S \
 			kern/uefi.c \
 			kern/uefiasm.S \
 			kern/spinlock.c \
-			kern/ipc.c \
+			kern/ipc.c
 
 ifeq ($(CONFIG_KSPACE),y)
 KERN_SRCFILES += kern/alloc.c
@@ -123,7 +123,10 @@ KERN_BINFILES :=	user/hello \
 			user/implicitconv \
 			user/signedoverflow \
 			user/monitor \
-			user/filldisk
+			user/filldisk \
+			user/itask_sleep \
+			user/itask_ipc_timed \
+			
 KERN_BINFILES := $(patsubst %, $(OBJDIR)/%, $(KERN_BINFILES))
 endif
 

@@ -95,11 +95,15 @@ int sys_map_physical_region(uintptr_t pa, envid_t dst_env,
 int sys_unmap_region(envid_t env, void *pg, size_t size);
 int sys_ipc_try_send(envid_t to_env, uint64_t value, void *pg, size_t size, int perm);
 int sys_ipc_recv(void *rcv_pg, size_t size);
+int sys_ipc_try_send_timed(envid_t to_env, uint64_t value, void *pg, size_t size, int perm, uint64_t timeout);
+int sys_ipc_recv_timed(void *rcv_pg, size_t size, uint64_t timeout);
 int sys_gettime(void);
 
 int vsys_gettime(void);
 
 int sys_monitor(void);
+
+int sys_sleep(uint64_t timeout);
 
 /* This must be inlined. Exercise for reader: why? */
 static inline envid_t __attribute__((always_inline))
@@ -113,8 +117,11 @@ sys_exofork(void) {
 
 /* ipc.c */
 void ipc_send(envid_t to_env, uint32_t value, void *pg, size_t size, int perm);
+int32_t ipc_send_timed(envid_t to_env, uint32_t value, void *pg, size_t size, int perm, uint64_t timeout);
 int32_t ipc_recv(envid_t *from_env_store, void *pg, size_t *psize, int *perm_store);
+int32_t ipc_recv_timed(envid_t *from_env_store, void *pg, size_t *psize, int *perm_store, uint64_t timeout);
 envid_t ipc_find_env(enum EnvType type);
+
 
 /* fork.c */
 envid_t fork(void);

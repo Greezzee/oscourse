@@ -56,6 +56,44 @@ ipc_recv(envid_t *from_env_store, void *pg, size_t *size, int *perm_store) {
     }
 }
 
+int32_t
+ipc_recv_timed(envid_t *from_env_store, void *pg, size_t *size, int *perm_store, uint64_t timeout) {
+    // LAB 9: Your code here:
+    if (!pg) {
+        pg = (void *)MAX_USER_ADDRESS;
+    }
+
+    int res = sys_ipc_recv_timed(pg, size ? *size : 0, timeout);
+    if (res == 0) {
+        cprintf("Recv succeed\n");
+        if (from_env_store) {
+            *from_env_store = thisenv->env_ipc_from;
+        }
+
+        if (perm_store) {
+            *perm_store = thisenv->env_ipc_perm;
+        }
+        if (size) {
+            *size = thisenv->env_ipc_maxsz;
+        }
+
+        return thisenv->env_ipc_value;
+    } else {
+        if (from_env_store) {
+            *from_env_store = 0;
+        }
+
+        if (perm_store) {
+            *perm_store = 0;
+        }
+        if (size) {
+            *size = 0;
+        }
+
+        return res;
+    }
+}
+
 /* Send 'val' (and 'pg' with 'perm', if 'pg' is nonnull) to 'toenv'.
  * This function keeps trying until it succeeds.
  * It should panic() on any error other than -E_IPC_NOT_RECV.
@@ -79,6 +117,14 @@ ipc_send(envid_t to_env, uint32_t val, void *pg, size_t size, int perm) {
             panic("Error in ipc_send: %i\n", res);
         }
     }
+}
+
+int32_t
+ipc_send_timed(envid_t to_env, uint32_t val, void *pg, size_t size, int perm, uint64_t timeout) {
+    if (!pg) {
+        pg = (void *)MAX_USER_ADDRESS;
+    }
+    return sys_ipc_try_send_timed(to_env, val, pg, size, perm, timeout);
 }
 
 /* Find the first environment of the given type.  We'll use this to

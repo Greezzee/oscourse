@@ -394,7 +394,7 @@ sys_ipc_try_send_timed(envid_t envid, uint32_t value, uintptr_t srcva, size_t si
         curenv->env_tf.tf_regs.reg_rax = 0;
         sched_yield();
     }
-    
+    cprintf("Skipping timeouting\n");
     return ipc_send(env, curenv, value, srcva, size, perm); // recv env is ready to receive, so skipping timeout waiting
 }
 
@@ -523,8 +523,15 @@ sys_region_refs(uintptr_t addr, size_t size, uintptr_t addr2, size_t size2) {
 static int 
 sys_monitor() {
     monitor(NULL);
-
     return 0;
+}
+
+static int
+sys_sleep(uint64_t timeout) {
+    curenv->env_sleep_timeout = read_tsc() + timeout * get_cpu_freq("hpet0") / 1000;
+    curenv->env_status = ENV_NOT_RUNNABLE;
+    curenv->env_tf.tf_regs.reg_rax = 0;
+    sched_yield();
 }
 
 /* Dispatches to the correct kernel function, passing the arguments. */
@@ -577,6 +584,8 @@ syscall(uintptr_t syscallno, uintptr_t a1, uintptr_t a2, uintptr_t a3, uintptr_t
         return sys_ipc_recv_timed(a1, a2, a3);
     case SYS_ipc_try_send_timed:
         return sys_ipc_try_send_timed((envid_t)a1, (uint32_t)a2, a3,(size_t)a4,(int)a5, a6);
+    case SYS_sleep:
+        return sys_sleep(a1);
     }
     
     // LAB 10: Your code here

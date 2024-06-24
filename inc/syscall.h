@@ -23,6 +23,7 @@ enum {
     SYS_ipc_recv_timed,
     SYS_gettime,
     SYS_monitor,
+    SYS_sleep,
     NSYSCALLS
 };
 

@@ -28,6 +28,8 @@ ipc_send(struct Env* env_recv, struct Env* env_send, uint32_t value, uintptr_t s
     env_send->env_ipc_sending = false;
     env_recv->env_ipc_timeout = 0;
     env_send->env_ipc_timeout = 0;
+    env_recv->env_status = ENV_RUNNABLE;
+    env_send->env_status = ENV_RUNNABLE;
 
     if (srcva < MAX_USER_ADDRESS && env_recv->env_ipc_dstva < MAX_USER_ADDRESS) {
         if (PAGE_OFFSET(srcva) ||
@@ -50,9 +52,6 @@ ipc_send(struct Env* env_recv, struct Env* env_send, uint32_t value, uintptr_t s
     }
     env_recv->env_ipc_value = value;
     env_recv->env_ipc_from = env_send->env_id;
-
-    env_recv->env_status = ENV_RUNNABLE;
-    env_send->env_status = ENV_RUNNABLE;
     return 0;
 }
 
@@ -79,7 +78,8 @@ process_timed_ipc(struct Env* env) {
     if (read_tsc() >= env->env_ipc_timeout) {
         env->env_status = ENV_RUNNABLE;
         clear_ipc(env);
-        curenv->env_tf.tf_regs.reg_rax = -E_TIMEOUT;
+        env->env_tf.tf_regs.reg_rax = -E_TIMEOUT;
+        cprintf("Timeout!!!\n");
         return -E_TIMEOUT;
     }
 
@@ -90,13 +90,13 @@ process_timed_ipc(struct Env* env) {
     if (envid2env(env->env_ipc_to, &env_recv, 0)) {
         env->env_status = ENV_RUNNABLE;
         clear_ipc(env);
-        curenv->env_tf.tf_regs.reg_rax = -E_BAD_ENV;
+        env->env_tf.tf_regs.reg_rax = -E_BAD_ENV;
         return -E_BAD_ENV;
     }
     if (env_recv->env_status != ENV_NOT_RUNNABLE) {
         env->env_status = ENV_RUNNABLE;
         clear_ipc(env);
-        curenv->env_tf.tf_regs.reg_rax = -E_BAD_ENV;
+        env->env_tf.tf_regs.reg_rax = -E_BAD_ENV;
         return -E_BAD_ENV;
     }
     if (!env_recv->env_ipc_recving)

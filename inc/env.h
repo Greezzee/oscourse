@@ -86,6 +86,9 @@ struct Env {
     envid_t env_ipc_to;      /* envid of the receiver */
     int env_ipc_perm;        /* Perm of page mapping received/sent */
     uint64_t env_ipc_timeout;/* value of tsc when ipc recv/send is timeouted. 0 if there are no timeout */
+
+    /* Sleep syscall */
+    uint64_t env_sleep_timeout;
 };
 
 #endif /* !JOS_INC_ENV_H */
