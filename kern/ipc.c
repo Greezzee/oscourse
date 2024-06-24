@@ -32,12 +32,6 @@ ipc_send(struct Env* env_recv, struct Env* env_send, uint32_t value, uintptr_t s
     env_send->env_status = ENV_RUNNABLE;
 
     if (srcva < MAX_USER_ADDRESS && env_recv->env_ipc_dstva < MAX_USER_ADDRESS) {
-        if (PAGE_OFFSET(srcva) ||
-            PAGE_OFFSET(env_recv->env_ipc_dstva) ||
-            perm & ~(ALLOC_ONE | ALLOC_ZERO | PROT_ALL))
-            return -E_INVAL;
-        if ((perm & PROT_W) && user_mem_check(env_send, (void *)srcva, size, PROT_W) < 0)
-            return -E_INVAL;
 
         size_t actual_size = MIN(size, env_recv->env_ipc_maxsz);
         if (map_region(&env_recv->address_space, env_recv->env_ipc_dstva, &env_send->address_space, srcva, actual_size, perm | PROT_USER_)) {
@@ -57,10 +51,14 @@ ipc_send(struct Env* env_recv, struct Env* env_send, uint32_t value, uintptr_t s
 
 void
 ipc_prepare_send_timed(envid_t envid, uint32_t value, uintptr_t srcva, size_t size, int perm, uint64_t timeout) {
+
+    //cprintf ("1: %x trying to send page addr = %lx, size = %lx\n", curenv->env_id, srcva, size);
+
     curenv->env_ipc_sending = true;
     curenv->env_status = ENV_NOT_RUNNABLE;
     curenv->env_ipc_timeout = read_tsc() + timeout * get_cpu_freq("hpet0") / 1000;
 
+    curenv->env_ipc_value = value;
     curenv->env_ipc_to = envid;
     curenv->env_ipc_srcva = srcva;
     curenv->env_ipc_maxsz = size;
@@ -79,7 +77,6 @@ process_timed_ipc(struct Env* env) {
         env->env_status = ENV_RUNNABLE;
         clear_ipc(env);
         env->env_tf.tf_regs.reg_rax = -E_TIMEOUT;
-        cprintf("Timeout!!!\n");
         return -E_TIMEOUT;
     }
 
@@ -93,7 +90,7 @@ process_timed_ipc(struct Env* env) {
         env->env_tf.tf_regs.reg_rax = -E_BAD_ENV;
         return -E_BAD_ENV;
     }
-    if (env_recv->env_status != ENV_NOT_RUNNABLE) {
+    if (!(env_recv->env_status == ENV_NOT_RUNNABLE || env_recv->env_status == ENV_RUNNING)) {
         env->env_status = ENV_RUNNABLE;
         clear_ipc(env);
         env->env_tf.tf_regs.reg_rax = -E_BAD_ENV;
@@ -102,5 +99,7 @@ process_timed_ipc(struct Env* env) {
     if (!env_recv->env_ipc_recving)
         return -E_IPC_NOT_RECV;
 
-    return ipc_send(env_recv, env, env->env_ipc_value, env->env_ipc_srcva, env->env_ipc_maxsz, env->env_ipc_perm);
+    cprintf("Trying to send\n");
+    env->env_tf.tf_regs.reg_rax = ipc_send(env_recv, env, env->env_ipc_value, env->env_ipc_srcva, env->env_ipc_maxsz, env->env_ipc_perm);
+    return env->env_tf.tf_regs.reg_rax;
 }

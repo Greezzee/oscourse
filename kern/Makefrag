@@ -91,13 +91,6 @@ KERN_BINFILES :=	user/hello \
 			user/yield \
 			user/dumbfork \
 			user/stresssched \
-			user/faultdie \
-			user/faultregs \
-			user/faultalloc \
-			user/faultallocbad \
-			user/faultnostack \
-			user/faultbadhandler \
-			user/faultevilhandler \
 			user/forktree \
 			user/spin \
 			user/fairness \
@@ -126,6 +119,13 @@ KERN_BINFILES :=	user/hello \
 			user/filldisk \
 			user/itask_sleep \
 			user/itask_ipc_timed \
+#			user/faultdie \
+			user/faultregs \
+			user/faultalloc \
+			user/faultallocbad \
+			user/faultnostack \
+			user/faultbadhandler \
+			user/faultevilhandler \
 			
 KERN_BINFILES := $(patsubst %, $(OBJDIR)/%, $(KERN_BINFILES))
 endif

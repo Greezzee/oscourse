@@ -65,7 +65,6 @@ ipc_recv_timed(envid_t *from_env_store, void *pg, size_t *size, int *perm_store,
 
     int res = sys_ipc_recv_timed(pg, size ? *size : 0, timeout);
     if (res == 0) {
-        cprintf("Recv succeed\n");
         if (from_env_store) {
             *from_env_store = thisenv->env_ipc_from;
         }

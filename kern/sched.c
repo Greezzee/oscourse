@@ -25,7 +25,6 @@ sched_yield(void) {
      * below to halt the cpu */
 
     struct Env *next_env = curenv ? curenv : envs - 1;
-
     for (int32_t i = 0; i < NENV; ++i) {
         next_env++;
         if (next_env == envs + NENV) {

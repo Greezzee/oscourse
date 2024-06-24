@@ -394,7 +394,7 @@ sys_ipc_try_send_timed(envid_t envid, uint32_t value, uintptr_t srcva, size_t si
         curenv->env_tf.tf_regs.reg_rax = 0;
         sched_yield();
     }
-    cprintf("Skipping timeouting\n");
+    cprintf("Skipping timeout in send\n");
     return ipc_send(env, curenv, value, srcva, size, perm); // recv env is ready to receive, so skipping timeout waiting
 }
 
