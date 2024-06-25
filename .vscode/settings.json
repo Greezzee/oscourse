@@ -7,6 +7,11 @@
         "utility": "c",
         "lib.h": "c",
         "assert.h": "c",
-        "*.tcc": "c"
+        "*.tcc": "c",
+        "env.h": "c",
+        "vsyscall.h": "c",
+        "mmu.h": "c",
+        "types.h": "c",
+        "stdbool.h": "c"
     }
 }

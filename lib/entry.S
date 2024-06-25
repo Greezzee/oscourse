@@ -11,6 +11,8 @@
 
 .globl envs
 .set envs, UENVS
+.globl thrs
+.set thrs, UTHRS
 .globl vsys
 .set vsys, UVSYS
 .globl uvpt

@@ -9,6 +9,7 @@
 #include <kern/console.h>
 #include <kern/monitor.h>
 #include <kern/env.h>
+#include <kern/thread.h>
 #include <kern/syscall.h>
 #include <kern/sched.h>
 #include <kern/kclock.h>
@@ -408,18 +409,19 @@ trap(struct Trapframe *tf) {
         }
         if (!res) {
             in_page_fault = 0;
-            env_pop_tf(tf);
+            thr_pop_tf(tf);
         }
     }
 
     assert(curenv);
+    assert(curthr);
 
     /* Copy trap frame (which is currently on the stack)
      * into 'curenv->env_tf', so that running the environment
      * will restart at the trap point */
-    nosan_memcpy((void *)&curenv->env_tf, (void *)tf, sizeof(struct Trapframe));
+    nosan_memcpy((void *)&curthr->thr_tf, (void *)tf, sizeof(struct Trapframe));
     /* The trapframe on the stack should be ignored from here on */
-    tf = &curenv->env_tf;
+    tf = &curthr->thr_tf;
 
     /* Record that tf is the last real trapframe so
      * print_trapframe can print some additional information */
@@ -489,16 +491,20 @@ page_fault_handler(struct Trapframe *tf) {
     /* Force allocation of exception stack page to prevent memcpy from
      * causing pagefault during another pagefault */
     // LAB 9: Your code here:
-    force_alloc_page(&curenv->address_space, USER_EXCEPTION_STACK_TOP - PAGE_SIZE, PAGE_SIZE);
+
+    uint32_t thr_low_id = THR_ENVX(curthr->thr_id);
+    uintptr_t user_exception_stack_top_cur_thread = USER_EXCEPTION_STACK_TOP - thr_low_id * PAGE_SIZE;
+
+    force_alloc_page(&curenv->address_space, user_exception_stack_top_cur_thread - PAGE_SIZE, PAGE_SIZE);
 
     /* Assert existance of exception stack */
     // LAB 9: Your code here:
 
     uintptr_t ursp;
-    if (tf->tf_rsp < USER_EXCEPTION_STACK_TOP && tf->tf_rsp >= USER_EXCEPTION_STACK_TOP - PAGE_SIZE) {
+    if (tf->tf_rsp < user_exception_stack_top_cur_thread && tf->tf_rsp >= user_exception_stack_top_cur_thread - PAGE_SIZE) {
         ursp = tf->tf_rsp - sizeof(uintptr_t);
     } else {
-        ursp = USER_EXCEPTION_STACK_TOP;
+        ursp = user_exception_stack_top_cur_thread;
     }
 
     ursp -= sizeof(struct UTrapframe);

@@ -14,6 +14,7 @@
 #include <inc/error.h>
 #include <inc/assert.h>
 #include <inc/env.h>
+#include <inc/thread.h>
 #include <inc/memlayout.h>
 #include <inc/syscall.h>
 #include <inc/vsyscall.h>
@@ -41,6 +42,8 @@ extern const char *binaryname;
 extern const volatile int vsys[];
 extern const volatile struct Env *thisenv;
 extern const volatile struct Env envs[NENV];
+extern const volatile struct Thr thrs[NTHR];
+extern const volatile struct Thr *thisthr;
 
 /* exit.c */
 void exit(void);

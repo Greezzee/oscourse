@@ -12,6 +12,7 @@
 #include <kern/pmap.h>
 #include <kern/traceopt.h>
 #include <kern/trap.h>
+#include <kern/thread.h>
 
 /*
  * Term "page" used here does not
@@ -2091,10 +2092,19 @@ user_mem_check(struct Env *env, const void *va, size_t len, int perm) {
 
 void
 user_mem_assert(struct Env *env, const void *va, size_t len, int perm) {
+    struct Thr* cur_thr;
+    int res = thrid2thr(env->env_thr_cur, &cur_thr);
+    if (res < 0) {
+        cprintf("[%08x] user_mem_check assertion %i\n",
+                env->env_id, res);
+        panic("AAAA");
+        env_destroy(env); 
+    }
     if (user_mem_check(env, va, len, perm | PROT_USER_) < 0) {
         cprintf("[%08x] user_mem_check assertion failure for "
                 "va=%016zx ip=%016zx\n",
-                env->env_id, user_mem_check_addr, env->env_tf.tf_rip);
+                env->env_id, user_mem_check_addr, cur_thr->thr_tf.tf_rip);
+        panic("BBBB");
         env_destroy(env); /* may not return */
     }
 }

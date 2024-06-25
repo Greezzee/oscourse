@@ -77,10 +77,8 @@ spawn(const char *prog, const char **argv) {
      *   - Start the child process running with sys_env_set_status(). */
 
     // TODO Properly load ELF and check errors
-
     int fd = open(prog, O_RDONLY);
     if (fd < 0) return fd;
-
     /* Read elf header */
     struct Elf *elf = (struct Elf *)elf_buf;
     res = readn(fd, elf_buf, sizeof(elf_buf));
@@ -89,6 +87,7 @@ spawn(const char *prog, const char **argv) {
         close(fd);
         return -E_NOT_EXEC;
     }
+    
     if (elf->e_magic != ELF_MAGIC ||
         elf->e_elf[0] != 2 /* 64-bit */ ||
         elf->e_elf[1] != 1 /* little endian */ ||
@@ -99,17 +98,17 @@ spawn(const char *prog, const char **argv) {
         close(fd);
         return -E_NOT_EXEC;
     }
-
     /* Create new child environment */
     if ((int)(res = sys_exofork()) < 0) goto error2;
     envid_t child = res;
 
     /* Set up trap frame, including initial stack. */
-    struct Trapframe child_tf = envs[ENVX(child)].env_tf;
+    thrid_t child_thr_id = envs[ENVX(child)].env_thr_cur;
+    struct Thr child_thr = thrs[THRX(child_thr_id)];
+    struct Trapframe child_tf = child_thr.thr_tf;
     child_tf.tf_rip = elf->e_entry;
 
     if ((res = init_stack(child, argv, &child_tf)) < 0) goto error;
-
     /* Set up program segments as defined in ELF header. */
     struct Proghdr *ph = (struct Proghdr *)(elf_buf + elf->e_phoff);
     for (size_t i = 0; i < elf->e_phnum; i++, ph++) {
@@ -123,19 +122,15 @@ spawn(const char *prog, const char **argv) {
                                fd, ph->p_filesz, ph->p_offset, perm)) < 0)
             goto error;
     }
-
     close(fd);
 
     /* Copy shared library state. */
     if ((res = foreach_shared_region(copy_shared_region, &child)) < 0)
         panic("copy_shared_region: %i", res);
-
     if ((res = sys_env_set_trapframe(child, &child_tf)) < 0)
         panic("sys_env_set_trapframe: %i", res);
-
     if ((res = sys_env_set_status(child, ENV_RUNNABLE)) < 0)
         panic("sys_env_set_status: %i", res);
-
     return child;
 
 error:
@@ -173,7 +168,6 @@ spawnl(const char *prog, const char *arg0, ...) {
         argv[i + 1] = va_arg(vl, const char *);
     }
     va_end(vl);
-
     return spawn(prog, argv);
 }
 

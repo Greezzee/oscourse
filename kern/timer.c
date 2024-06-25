@@ -391,7 +391,7 @@ hpet_enable_interrupts_tim0(void) {
     hpetReg->TIM0_CONF |= HPET_TN_INT_ENB_CNF;
     
     uint64_t clk_period = hpetReg->GCAP_ID >> 32; // reading clock period in femptoseconds
-    uint64_t timer_in_fs = 5 * 1e12; // 0.005 s in fs
+    uint64_t timer_in_fs = 5 * 1e14; // 0.005 s in fs
     uint64_t periods = timer_in_fs / clk_period;
     // setting clock period
     hpetReg->TIM0_CONF |= HPET_TN_VAL_SET_CNF;

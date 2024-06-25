@@ -7,6 +7,7 @@
 
 #include <kern/console.h>
 #include <kern/env.h>
+#include <kern/thread.h>
 #include <kern/kclock.h>
 #include <kern/pmap.h>
 #include <kern/sched.h>
@@ -106,9 +107,15 @@ sys_exofork(void) {
         return res;
     }
     env->env_status = ENV_NOT_RUNNABLE;
-    env->env_tf = curenv->env_tf;
+
+    struct Thr* thr;
+    res = thrid2thr(env->env_thr_head, &thr);
+    if (res < 0)
+        return res;
+
+    thr->thr_tf = curthr->thr_tf;
     env->binary = curenv->binary;
-    env->env_tf.tf_regs.reg_rax = 0;
+    thr->thr_tf.tf_regs.reg_rax = 0;
     return env->env_id;
 }
 
@@ -372,7 +379,6 @@ sys_ipc_try_send(envid_t envid, uint32_t value, uintptr_t srcva, size_t size, in
     if (!env->env_ipc_recving)
         return -E_IPC_NOT_RECV;
     env->env_ipc_recving = false;
-
     if (srcva < MAX_USER_ADDRESS && env->env_ipc_dstva < MAX_USER_ADDRESS) {
         if (PAGE_OFFSET(srcva) ||
             PAGE_OFFSET(env->env_ipc_dstva) ||
@@ -425,7 +431,7 @@ sys_ipc_recv(uintptr_t dstva, uintptr_t maxsize) {
         curenv->env_ipc_dstva = dstva;
         curenv->env_ipc_maxsz = maxsize;
     }
-    curenv->env_tf.tf_regs.reg_rax = 0;
+    curthr->thr_tf.tf_regs.reg_rax = 0;
     sched_yield();
     return 0;
 }
@@ -448,16 +454,18 @@ sys_env_set_trapframe(envid_t envid, struct Trapframe *tf) {
         return -E_BAD_ENV;
     }
 
+    struct Thr* thr;
+    if (thrid2thr(env->env_thr_head, &thr) < 0) {
+        return -E_BAD_THR;
+    }
     user_mem_assert(curenv, tf, sizeof(*tf), PROT_R);
-
-    nosan_memcpy(&env->env_tf, tf, sizeof(*tf));
-
-    env->env_tf.tf_ds = GD_UD | 3;
-    env->env_tf.tf_es = GD_UD | 3;
-    env->env_tf.tf_ss = GD_UD | 3;
-    env->env_tf.tf_cs = GD_UT | 3;
-    env->env_tf.tf_rflags &= 0xFFF;
-    env->env_tf.tf_rflags |= FL_IF;
+    nosan_memcpy(&thr->thr_tf, tf, sizeof(*tf));
+    thr->thr_tf.tf_ds = GD_UD | 3;
+    thr->thr_tf.tf_es = GD_UD | 3;
+    thr->thr_tf.tf_ss = GD_UD | 3;
+    thr->thr_tf.tf_cs = GD_UT | 3;
+    thr->thr_tf.tf_rflags &= 0xFFF;
+    thr->thr_tf.tf_rflags |= FL_IF;
     return 0;
 }
 
@@ -466,7 +474,7 @@ sys_env_set_trapframe(envid_t envid, struct Trapframe *tf) {
 static int
 sys_gettime(void) {
     // LAB 12: Your code here
-    return gettime();;
+    return gettime();
 }
 
 /*

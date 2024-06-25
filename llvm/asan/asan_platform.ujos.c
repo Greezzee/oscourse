@@ -132,6 +132,7 @@ platform_asan_init(void) {
     /* 3. Kernel exposed info (UENVS, UVSYS (only for lab 12)) */
     // LAB 8: Your code here
     platform_asan_unpoison((void *)UENVS, UENVS_SIZE);
+    platform_asan_unpoison((void *)UTHRS, UTHRS_SIZE);
 
     // TODO NOTE: LAB 12 code may be here
 #if LAB >= 12

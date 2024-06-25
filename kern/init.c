@@ -11,6 +11,7 @@
 #include <kern/console.h>
 #include <kern/pmap.h>
 #include <kern/env.h>
+#include <kern/thread.h>
 #include <kern/timer.h>
 #include <kern/trap.h>
 #include <kern/sched.h>
@@ -150,6 +151,7 @@ i386_init(void) {
     if (trace_init) cprintf("Framebuffer initialised\n");
     trap_init();
     /* User environment initialization functions */
+    thr_init();
     env_init();
     /* Choose the timer used for scheduling: hpet or pit */
     timers_schedule("hpet0");

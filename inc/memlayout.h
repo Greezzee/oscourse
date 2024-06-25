@@ -150,6 +150,10 @@
 #define UVSYS_SIZE PAGE_SIZE
 #define UVSYS      (UENVS - UVSYS_SIZE)
 
+/* Env's treads page */
+#define UTHRS_SIZE HUGE_PAGE_SIZE
+#define UTHRS      (UVSYS - UTHRS_SIZE)
+
 /*
  * Top of user VM. User can manipulate VA from MAX_USER_ADDRESS-1 and down!
  */

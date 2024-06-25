@@ -13,12 +13,12 @@
 #include <kern/macro.h>
 #include <kern/monitor.h>
 #include <kern/pmap.h>
-#include <kern/pmap.h>
 #include <kern/sched.h>
 #include <kern/timer.h>
 #include <kern/traceopt.h>
 #include <kern/trap.h>
 #include <kern/vsyscall.h>
+#include <kern/thread.h>
 
 /* Currently active environment */
 struct Env *curenv = NULL;
@@ -114,6 +114,7 @@ env_init(void) {
     assert(envs);
 #else
     assert(current_space);
+
     envs = kzalloc_region(NENV * sizeof(*envs));
     memset(envs, 0, ROUNDUP(NENV * sizeof(*envs), PAGE_SIZE));
 
@@ -169,43 +170,6 @@ env_alloc(struct Env **newenv_store, envid_t parent_id, enum EnvType type) {
     env->env_type = type;
 #endif
     env->env_status = ENV_RUNNABLE;
-    env->env_runs = 0;
-
-    /* Clear out all the saved register state,
-     * to prevent the register values
-     * of a prior environment inhabiting this Env structure
-     * from "leaking" into our new environment */
-    memset(&env->env_tf, 0, sizeof(env->env_tf));
-
-    /* Set up appropriate initial values for the segment registers.
-     * GD_UD is the user data (KD - kernel data) segment selector in the GDT, and
-     * GD_UT is the user text (KT - kernel text) segment selector (see inc/memlayout.h).
-     * The low 2 bits of each segment register contains the
-     * Requestor Privilege Level (RPL); 3 means user mode, 0 - kernel mode.  When
-     * we switch privilege levels, the hardware does various
-     * checks involving the RPL and the Descriptor Privilege Level
-     * (DPL) stored in the descriptors themselves */
-
-#ifdef CONFIG_KSPACE
-    env->env_tf.tf_ds = GD_KD;
-    env->env_tf.tf_es = GD_KD;
-    env->env_tf.tf_ss = GD_KD;
-    env->env_tf.tf_cs = GD_KT;
-
-    // LAB 3: Your code here:
-    static uintptr_t stack_top = 0x2000000;
-    env->env_tf.tf_rsp = stack_top;
-    stack_top += 2 * PAGE_SIZE;
-#else
-    env->env_tf.tf_ds = GD_UD | 3;
-    env->env_tf.tf_es = GD_UD | 3;
-    env->env_tf.tf_ss = GD_UD | 3;
-    env->env_tf.tf_cs = GD_UT | 3;
-    env->env_tf.tf_rsp = USER_STACK_TOP;
-#endif
-
-    /* For now init trapframe with IF set */
-    env->env_tf.tf_rflags = FL_IF | (type == ENV_TYPE_FS ? FL_IOPL_3 : FL_IOPL_0);
 
     /* Clear the page fault handler until user installs one. */
     env->env_pgfault_upcall = 0;
@@ -215,6 +179,14 @@ env_alloc(struct Env **newenv_store, envid_t parent_id, enum EnvType type) {
 
     /* Commit the allocation */
     env_free_list = env->env_link;
+
+    res = thr_create(env->env_id); // creating main thread of env
+    if (res < 0) {
+        cprintf("Error in creating thread: %i\n", res);
+        return res;
+    }
+    env->env_thr_cur = env->env_thr_head;
+
     *newenv_store = env;
 
     if (trace_envs) cprintf("[%08x] new env %08x\n", curenv ? curenv->env_id : 0, env->env_id);
@@ -448,24 +420,27 @@ load_icode(struct Env *env, uint8_t *binary, size_t size) {
         
         ph += 1;
     }
+    struct Thr* head_thr;
+    int res = thrid2thr(env->env_thr_head, &head_thr);
+    if (res < 0)
+        return res;
     env->binary = binary;
-    map_region(&env->address_space, USER_STACK_TOP - USER_STACK_SIZE, NULL, 0, USER_STACK_SIZE, PROT_R | PROT_W | PROT_USER_ | ALLOC_ZERO);
-    env->env_tf.tf_rip = (uintptr_t) elf_data->e_entry;
-
+    head_thr->thr_tf.tf_rip = (uintptr_t) elf_data->e_entry; // setting entry for main thread
 #ifdef CONFIG_KSPACE
+    cprintf("Binding functions\n");
     int err = bind_functions(env, binary, size, image_start, image_end);
     if (err < 0)
         panic("bind_functions: %i", err);
 #endif
     switch_address_space(&kspace);
-
     /* NOTE: When merging origin/lab10 put this hunk at the end
      *       of the function, when user stack is already mapped. */
     if (env->env_type == ENV_TYPE_FS) {
         /* If we are about to start filesystem server we need to pass
          * information about PCIe MMIO region to it. */
         struct AddressSpace *as = switch_address_space(&env->address_space);
-        env->env_tf.tf_rsp = make_fs_args((char *)env->env_tf.tf_rsp);
+        head_thr->thr_tf.tf_rsp = make_fs_args((char *)head_thr->thr_tf.tf_rsp);
+        head_thr->thr_tf.tf_rflags |= FL_IOPL_3;
         switch_address_space(as);
     }
 
@@ -481,7 +456,6 @@ load_icode(struct Env *env, uint8_t *binary, size_t size) {
 void
 env_create(uint8_t *binary, size_t size, enum EnvType type) {
     // LAB 3: Your code here
-
     if (!binary)
 		panic("env_create: null pointer 'binary'\n");
 
@@ -490,24 +464,21 @@ env_create(uint8_t *binary, size_t size, enum EnvType type) {
 	int r;
 	if ((r = env_alloc(&env, 0, type)) < 0)
 		panic("env_create: %i\n", r);
-
 	// Load the program using the page directory of its environment.
 	load_icode(env, binary, size);
     // LAB 8: Your code here
     env->binary = binary;
-    // LAB 10: Your code here
-    if (type == ENV_TYPE_FS) {
-        env->env_tf.tf_rflags |= FL_IOPL_3;
-    }
 }
 
 
 /* Frees env and all memory it uses */
 void
 env_free(struct Env *env) {
-
     /* Note the environment's demise. */
     if (trace_envs) cprintf("[%08x] free env %08x\n", curenv ? curenv->env_id : 0, env->env_id);
+
+    while(env->env_thr_count)
+        thr_destroy(env->env_thr_head);
 
 #ifndef CONFIG_KSPACE
     /* If freeing the current environment, switch to kern_pgdir
@@ -564,41 +535,6 @@ csys_yield(struct Trapframe *tf) {
 }
 #endif
 
-/* Restores the register values in the Trapframe with the 'ret' instruction.
- * This exits the kernel and starts executing some environment's code.
- *
- * This function does not return.
- */
-
-_Noreturn void
-env_pop_tf(struct Trapframe *tf) {
-    asm volatile(
-            "movq %0, %%rsp\n"
-            "movq 0(%%rsp), %%r15\n"
-            "movq 8(%%rsp), %%r14\n"
-            "movq 16(%%rsp), %%r13\n"
-            "movq 24(%%rsp), %%r12\n"
-            "movq 32(%%rsp), %%r11\n"
-            "movq 40(%%rsp), %%r10\n"
-            "movq 48(%%rsp), %%r9\n"
-            "movq 56(%%rsp), %%r8\n"
-            "movq 64(%%rsp), %%rsi\n"
-            "movq 72(%%rsp), %%rdi\n"
-            "movq 80(%%rsp), %%rbp\n"
-            "movq 88(%%rsp), %%rdx\n"
-            "movq 96(%%rsp), %%rcx\n"
-            "movq 104(%%rsp), %%rbx\n"
-            "movq 112(%%rsp), %%rax\n"
-            "movw 120(%%rsp), %%es\n"
-            "movw 128(%%rsp), %%ds\n"
-            "addq $152,%%rsp\n" /* skip tf_trapno and tf_errcode */
-            "iretq" ::"g"(tf)
-            : "memory");
-
-    /* Mostly to placate the compiler */
-    panic("Reached unrecheble\n");
-}
-
 /* Context switch from curenv to env.
  * This function does not return.
  *
@@ -622,8 +558,8 @@ env_pop_tf(struct Trapframe *tf) {
  */
 _Noreturn void
 env_run(struct Env *env) {
+    //cprintf("Env run\n");
     assert(env);
-
     if (trace_envs_more) {
         const char *state[] = {"FREE", "DYING", "RUNNABLE", "RUNNING", "NOT_RUNNABLE"};
         if (curenv) cprintf("[%08X] env stopped: %s\n", curenv->env_id, state[curenv->env_status]);
@@ -638,10 +574,14 @@ env_run(struct Env *env) {
 			curenv->env_status = ENV_RUNNABLE;
 		curenv = env;
 		curenv->env_status = ENV_RUNNING;
-		curenv->env_runs++;
 	}
-    switch_address_space(&curenv->address_space);
-    env_pop_tf(&curenv->env_tf);
+    if (&curenv->address_space != current_space)
+        switch_address_space(&curenv->address_space);
+    struct Thr* cur_thr;
+    int res = thrid2thr(curenv->env_thr_cur, &cur_thr);
+    if (res < 0)
+        panic("Running bad thr\n");
+    thr_run(cur_thr);
     // LAB 8: Your code here
 
     while (1)
