@@ -81,6 +81,7 @@ int sys_cgetc(void);
 envid_t sys_getenvid(void);
 int sys_env_destroy(envid_t);
 void sys_yield(void);
+void sys_periodic_wait(void);
 int sys_region_refs(void *va, size_t size);
 int sys_region_refs2(void *va, size_t size, void *va2, size_t size2);
 static envid_t sys_exofork(void);

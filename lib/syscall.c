@@ -66,6 +66,11 @@ sys_yield(void) {
     syscall(SYS_yield, 0, 0, 0, 0, 0, 0, 0);
 }
 
+void
+sys_periodic_wait(void) {
+    syscall(SYS_periodic_wait, 0, 0, 0, 0, 0, 0, 0);
+}
+
 int
 sys_region_refs(void *va, size_t size) {
     return syscall(SYS_region_refs, 0, (uintptr_t)va, size, MAX_USER_ADDRESS, 0, 0, 0);

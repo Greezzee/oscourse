@@ -17,6 +17,7 @@ enum {
     SYS_env_set_trapframe,
     SYS_env_set_pgfault_upcall,
     SYS_yield,
+    SYS_periodic_wait,
     SYS_ipc_try_send,
     SYS_ipc_recv,
     SYS_gettime,
