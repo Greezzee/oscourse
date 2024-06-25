@@ -125,6 +125,10 @@ early_boot_pml4_init(void) {
 #endif
 }
 
+void deadline_exceed_handler() {
+    cprintf("Oh no! You didn't reach the quota so you are fired!\n");
+}
+
 void
 i386_init(void) {
 
@@ -174,7 +178,8 @@ i386_init(void) {
     ENV_CREATE(TEST, ENV_TYPE_USER);
 #else
     /* Touch all you want. */
-    ENV_CREATE(user_icode, ENV_TYPE_USER);
+    ENV_CREATE_DIFF_CLASS(user_icode, ENV_TYPE_USER, ENV_CLASS_REAL_TIME, 1e9, 5 * 1e8, 1e8, (void*)deadline_exceed_handler);
+    ENV_CREATE_DIFF_CLASS(user_icode, ENV_TYPE_USER, ENV_CLASS_REAL_TIME, 1e9, 1e8, 4 * 1e7, (void*)deadline_exceed_handler);
 #endif /* TEST* */
 #endif
 

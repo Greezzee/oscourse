@@ -7,6 +7,30 @@
 struct Taskstate cpu_ts;
 _Noreturn void sched_halt(void);
 
+int64_t get_sheduler_metric(struct Env* env) {
+    int64_t left_time_to_deadline = (int64_t)(env->deadline) - (int64_t)env->last_period_start_moment;
+    int64_t metric = left_time_to_deadline - (int64_t)env->left_max_job_time;
+    return metric > 0 ? metric : 0;
+}
+
+void insertion_sort(int32_t n, int32_t ind_arr[], struct Env *envs)
+{
+    int32_t newElement, location;
+
+    for (int32_t i = 1; i < n; i++)
+    {
+        newElement = ind_arr[i];
+        location = i - 1;
+
+        while(location >= 0 && get_sheduler_metric(&envs[ind_arr[location]]) > get_sheduler_metric(&envs[newElement]))
+        {
+            ind_arr[location+1] = ind_arr[location];
+            location = location - 1;
+        }
+        ind_arr[location+1] = newElement;
+    }
+}
+
 /* Choose a user environment to run and run it */
 _Noreturn void
 sched_yield(void) {
@@ -24,17 +48,92 @@ sched_yield(void) {
      * simply drop through to the code
      * below to halt the cpu */
 
-    struct Env *next_env = curenv ? curenv : envs - 1;
+    cprintf("\n\n\n-------------scheduler-iteration--------------\n");
 
+    int32_t run_time_indices[NENV];
+    int32_t rt_ind = 0;
+    
     for (int32_t i = 0; i < NENV; ++i) {
-        next_env++;
-        if (next_env == envs + NENV) {
-            next_env = envs;
+        switch (envs[i].env_class) {
+            case ENV_CLASS_REAL_TIME:
+                //  if the process reached the deadline and didn't finish
+                if (read_tsc() - envs[i].last_period_start_moment > envs[i].deadline) {
+                    //  Drop him to the usual state
+                    envs[i].env_class = ENV_CLASS_USUAL;
+                    envs[i].env_deadline_exceed_handler();
+                    break;
+                }
+
+                //  if the real-time process starts a new iteration
+                if (read_tsc() - envs[i].last_period_start_moment > envs[i].period) {
+                    envs[i].last_period_start_moment += envs[i].period;
+                    envs[i].left_max_job_time = envs[i].max_job_time;
+                    envs[i].env_status = ENV_RUNNABLE;
+                }
+                
+                if (envs[i].left_max_job_time == 0)
+                    envs[i].env_status = ENV_NOT_RUNNABLE;
+                else
+                    run_time_indices[rt_ind++] = i;
+                break;
+
+            case ENV_CLASS_USUAL:
+                break;
         }
-        if (next_env->env_status == ENV_RUNNABLE) {
+    }
+
+    cprintf("Run_time_indices before sort:\n");
+    for (int32_t i = 0; i < rt_ind; ++i) {
+        cprintf("%d\n", run_time_indices[i]);
+    }
+
+    insertion_sort(rt_ind, run_time_indices, envs);
+    
+    cprintf("Run_time_indices after sort:\n");
+    for (int32_t i = 0; i < rt_ind; ++i) {
+        cprintf("ind = %d and id = [%08X] with metric = %ld and left_max_job_time = %lu\n", run_time_indices[i], envs[run_time_indices[i]].env_id, get_sheduler_metric(&envs[run_time_indices[i]]), envs[run_time_indices[i]].left_max_job_time);
+    }
+
+    cprintf("tsc = %ld\n", read_tsc());
+
+    struct Env *next_env = envs;
+
+    uint8_t has_rt_process_for_run = 0;
+
+    for (int32_t i = 0; i < rt_ind; ++i) {
+        next_env = &envs[run_time_indices[i]];
+        cprintf("considering process with id = [%08X]...\n", next_env->env_id);
+        if (next_env->env_status == ENV_RUNNABLE || next_env->env_status == ENV_RUNNING) {
+            has_rt_process_for_run = 1;
             break;
         }
     }
+
+    if (!has_rt_process_for_run) {
+        next_env = curenv ? curenv : envs - 1;
+
+        for (int32_t i = 0; i < NENV; ++i) {
+            next_env++;
+            if (next_env == envs + NENV) {
+                next_env = envs;
+            }
+            if (next_env->env_class == ENV_CLASS_USUAL && next_env->env_status == ENV_RUNNABLE) {
+                break;
+            }
+        }
+    }
+
+    // for (int32_t i = 0; i < rt_ind; ++i) {
+    //     next_env++;
+    //     if (next_env == envs + NENV) {
+    //         next_env = envs;
+    //     }
+    //     if (next_env->env_status == ENV_RUNNABLE) {
+    //         break;
+    //     }
+    // }
+
+    cprintf("Next process for run: [%08X]\n", next_env->env_id);
 
     if (next_env->env_status == ENV_RUNNABLE) {
         env_run(next_env);

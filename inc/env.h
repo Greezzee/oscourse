@@ -47,6 +47,12 @@ enum EnvType {
     ENV_TYPE_FS, /* File system server */
 };
 
+/* Special enum for env_class */
+enum EnvClass {
+    ENV_CLASS_USUAL,
+    ENV_CLASS_REAL_TIME,
+};
+
 struct List {
     struct List *prev, *next;
 };
@@ -82,6 +88,17 @@ struct Env {
     uint32_t env_ipc_value;  /* Data value sent to us */
     envid_t env_ipc_from;    /* envid of the sender */
     int env_ipc_perm;        /* Perm of page mapping received */
+
+    /* Additional fields for real-time processes */
+    enum EnvClass env_class;
+    uint64_t period;
+    uint64_t deadline;
+    uint64_t max_job_time;
+    uint64_t left_max_job_time;  /* shows how mush time process should work at this iteration of scheduling */
+    void (*env_deadline_exceed_handler)(void);
+
+    uint64_t last_launch_time;  /* last moment when the process starts to work */
+    uint64_t last_period_start_moment;
 };
 
 #endif /* !JOS_INC_ENV_H */

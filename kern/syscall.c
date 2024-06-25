@@ -101,7 +101,7 @@ sys_exofork(void) {
 
     // LAB 9: Your code here
     struct Env *env;
-    int res = env_alloc(&env, curenv->env_id, ENV_TYPE_USER);
+    int res = env_alloc(&env, curenv->env_id, ENV_TYPE_USER, ENV_CLASS_USUAL);  //  TODO: should be non-const additional parameter here?
     if (res < 0) {
         return res;
     }
