@@ -15,6 +15,7 @@
 #include <kern/trap.h>
 #include <kern/traceopt.h>
 #include <kern/monitor.h>
+#include <kern/mutex.h>
 
 /* Print a string to the system console.
  * The string is exactly 'len' characters long.
@@ -161,7 +162,6 @@ sys_thr_cancel(thrid_t thr_id) {
 
 static int
 sys_thr_join(thrid_t thr_id) {
-    
     struct Thr* thr;
     int res = thrid2thr(thr_id, &thr);
     if (res < 0) {
@@ -176,6 +176,38 @@ sys_thr_join(thrid_t thr_id) {
 
     sched_yield();
     return 0;
+}
+
+static mutexid_t
+sys_mutex_create() {
+    struct Mutex* mutex;
+    int res = mutex_create(curenv->env_id, &mutex);
+    if (res < 0)
+        return res;
+    return mutex->mutex_id;
+}
+
+static int
+sys_mutex_destroy(mutexid_t mutexid) {
+    return mutex_destroy(mutexid);
+}
+
+static int
+sys_mutex_block_thr(mutexid_t mutexid, thrid_t owner_thr) {
+    int res = mutex_lock(mutexid, owner_thr);
+    if (res < 0)
+        return res;
+    curthr->thr_blocking_status = THR_WAITING_MUTEX;
+    curthr->thr_block = (int64_t)mutexid;
+    curthr->thr_status = THR_NOT_RUNNABLE;
+
+    sched_yield();
+    return 0;
+}
+
+static int
+sys_mutex_unlock(mutexid_t mutexid) {
+    return mutex_unlock(mutexid);
 }
 
 /* Set envid's env_status to status, which must be ENV_RUNNABLE
@@ -617,6 +649,14 @@ syscall(uintptr_t syscallno, uintptr_t a1, uintptr_t a2, uintptr_t a3, uintptr_t
         return sys_getthrid();
     case SYS_thr_join:
         return sys_thr_join((thrid_t)a1);
+    case SYS_mutex_create:
+        return sys_mutex_create();
+    case SYS_mutex_destroy:
+        return sys_mutex_destroy((mutexid_t)a1);
+    case SYS_mutex_block_thr:
+        return sys_mutex_block_thr((mutexid_t)a1, (thrid_t)a2);
+    case SYS_mutex_unlock:
+        return sys_mutex_unlock((mutexid_t)a1);
     }
     
     // LAB 10: Your code here

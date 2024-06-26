@@ -13,6 +13,10 @@
         "mmu.h": "c",
         "types.h": "c",
         "stdbool.h": "c",
-        "traceopt.h": "c"
+        "traceopt.h": "c",
+        "thread.h": "c",
+        "pmap.h": "c",
+        "sched.h": "c",
+        "random": "c"
     }
 }

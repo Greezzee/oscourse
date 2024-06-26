@@ -175,3 +175,19 @@ thrid_t sys_getthrid(void) {
 int sys_thr_join(thrid_t thr_id) {
     return syscall(SYS_thr_join, 0, (uintptr_t)thr_id, 0, 0, 0, 0, 0);
 }
+
+mutexid_t sys_mutex_create() {
+    return syscall(SYS_mutex_create, 0, 0, 0, 0, 0, 0, 0);
+}
+
+int sys_mutex_destroy(mutexid_t mutexid) {
+    return syscall(SYS_mutex_destroy, 0, (uintptr_t)mutexid, 0, 0, 0, 0, 0);
+}
+
+int sys_mutex_block_thr(mutexid_t mutexid, thrid_t owner_thr) {
+    return syscall(SYS_mutex_block_thr, 0, (uintptr_t)mutexid, (uintptr_t)owner_thr, 0, 0, 0, 0);
+}
+
+int sys_mutex_unlock(mutexid_t mutexid) {
+    return syscall(SYS_mutex_unlock, 0, (uintptr_t)mutexid, 0, 0, 0, 0, 0);
+}

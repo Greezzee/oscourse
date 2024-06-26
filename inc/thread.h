@@ -7,7 +7,7 @@
 
 typedef int64_t thrid_t;
 typedef int32_t envid_t;
-typedef uint32_t mutexid_t;
+typedef int32_t mutexid_t;
 
 #define LOG2NTHR    12
 #define LOG2NTHR_PER_ENV 10
@@ -56,8 +56,6 @@ struct Mutex {
     mutexid_t mutex_id; /* unique mutex id */
     envid_t mutex_owner_envid; /* env using this mutex */
     thrid_t mutex_owner_thrid; /* thread locking this mutex */
-
-    size_t mutex_depth; /* recursive depht of mutex (1 max for non-recusive).  */
 
     struct Mutex* mutex_next; /* next free mutex in the mutex list */
 };

@@ -80,6 +80,9 @@ char *readline(const char *buf);
 /* (mapped directly to page table unused flags) */
 #define PROT_ALL 0x05F /* NOTE This definition differs from kernel definition */
 
+#define RECURSIVE_MUTEX 0
+#define NON_RECURSIVE_MUTEX 1
+
 void sys_cputs(const char *string, size_t len);
 int sys_cgetc(void);
 envid_t sys_getenvid(void);
@@ -109,6 +112,11 @@ thrid_t sys_getthrid(void);
 int sys_thr_exit(void);
 int sys_thr_cancel(thrid_t thr_id);
 int sys_thr_join(thrid_t thr_id);
+
+mutexid_t sys_mutex_create();
+int sys_mutex_destroy(mutexid_t mutexid);
+int sys_mutex_block_thr(mutexid_t mutexid, thrid_t owner_thr);
+int sys_mutex_unlock(mutexid_t mutexid);
 
 /* This must be inlined. Exercise for reader: why? */
 static inline envid_t __attribute__((always_inline))
@@ -185,6 +193,13 @@ int jthread_create(thrid_t* thr, void(*start_routine)(void*), void* arg);
 int jthread_exit();
 int jthread_cancel(thrid_t thr_id);
 int jthread_join(thrid_t thr_id);
+
+typedef int jthread_mutex;
+
+jthread_mutex jthread_mutex_init(int param);
+int jthread_mutex_destroy(jthread_mutex mutex);
+int jthread_mutex_lock(jthread_mutex mutex);
+int jthread_mutex_unlock(jthread_mutex mutex);
 
 /* File open modes */
 #define O_RDONLY  0x0000 /* open for reading only */

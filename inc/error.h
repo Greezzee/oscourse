@@ -31,6 +31,11 @@ enum {
     E_NO_FREE_THR = 20,
     E_THR_NOT_EXISTS = 21,
     E_BAD_THR = 22,
+
+    E_BAD_MUTEX = 23,
+    E_MUTEX_LOCKED = 24,
+    E_NO_FREE_MUTEX = 25,
+
     MAXERROR
 };
 

@@ -26,6 +26,10 @@ enum {
     SYS_thr_cancel,
     SYS_getthrid,
     SYS_thr_join,
+    SYS_mutex_create,
+    SYS_mutex_destroy,
+    SYS_mutex_block_thr,
+    SYS_mutex_unlock,
     NSYSCALLS
 };
 
