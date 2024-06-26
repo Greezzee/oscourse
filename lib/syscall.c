@@ -171,3 +171,7 @@ int sys_thr_cancel(thrid_t thr_id) {
 thrid_t sys_getthrid(void) {
     return syscall(SYS_getthrid, 0, 0, 0, 0, 0, 0, 0);
 }
+
+int sys_thr_join(thrid_t thr_id) {
+    return syscall(SYS_thr_join, 0, (uintptr_t)thr_id, 0, 0, 0, 0, 0);
+}

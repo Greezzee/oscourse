@@ -277,6 +277,7 @@ thr_pop_tf(struct Trapframe *tf) {
 _Noreturn void
 thr_run(struct Thr *thr) {
     assert(thr);
+
     if (curthr != thr) 
     { // Context switch.
 		if (curthr && curthr->thr_status == THR_RUNNING)
@@ -287,6 +288,12 @@ thr_run(struct Thr *thr) {
 		curthr->thr_status = THR_RUNNING;
 		curthr->thr_runs++;
 	}
+
+    if (trace_thread) {
+        cprintf("[sched] Running next thr: %016lx; in-env id: %08lx\n", curthr->thr_id, THR_ENVX(curthr->thr_id));
+        cprintf("[sched] thread's stack is at %016llx to %016lx\n", curthr->thr_tf.tf_rsp - USER_STACK_SIZE, curthr->thr_tf.tf_rsp);
+    }  
+
     thr_pop_tf(&curthr->thr_tf);
     // LAB 8: Your code here
 
@@ -301,3 +308,17 @@ csys_yield(struct Trapframe *tf) {
     sched_yield();
 }
 #endif
+
+void thr_process_not_runnable(struct Thr *thr) {
+    if (thr->thr_status != THR_NOT_RUNNABLE)
+        return;
+    
+    if (thr->thr_blocking_status == THR_WAITING_JOIN) {
+        struct Thr* waited_thr;
+        if (thrid2thr(thr->thr_block, &waited_thr) < 0) {
+            cprintf("Making unrannable runnable\n");
+            thr->thr_status = THR_RUNNABLE;
+            thr->thr_tf.tf_regs.reg_rax = 0;
+        }
+    }
+}

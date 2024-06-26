@@ -32,7 +32,7 @@
 #undef trace_envs
 #define trace_envs 1
 #elif !defined(trace_envs)
-#define trace_envs 0
+#define trace_envs 1
 #endif
 
 #if LAB == 4 || LAB == 3

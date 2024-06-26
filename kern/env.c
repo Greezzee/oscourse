@@ -584,11 +584,12 @@ env_run(struct Env *env) {
 	}
     if (&curenv->address_space != current_space)
         switch_address_space(&curenv->address_space);
-    struct Thr* head_thr;
-    int res = thrid2thr(curenv->env_thr_head, &head_thr);
+        
+    struct Thr* cur_thr;
+    int res = thrid2thr(curenv->env_thr_head, &cur_thr);
     if (res < 0)
         panic("Running bad thr\n");
-    thr_run(head_thr);
+    thr_run(cur_thr);
     // LAB 8: Your code here
 
     while (1)

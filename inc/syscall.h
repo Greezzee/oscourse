@@ -25,6 +25,7 @@ enum {
     SYS_thr_exit,
     SYS_thr_cancel,
     SYS_getthrid,
+    SYS_thr_join,
     NSYSCALLS
 };
 

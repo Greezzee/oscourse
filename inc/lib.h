@@ -108,6 +108,7 @@ int sys_monitor(void);
 thrid_t sys_getthrid(void);
 int sys_thr_exit(void);
 int sys_thr_cancel(thrid_t thr_id);
+int sys_thr_join(thrid_t thr_id);
 
 /* This must be inlined. Exercise for reader: why? */
 static inline envid_t __attribute__((always_inline))
@@ -180,9 +181,10 @@ int pipeisclosed(int pipefd);
 void wait(envid_t env);
 
 /* thread.c */
-int jthread_create(thrid_t* thr, void*(*start_routine)(void*), void* arg);
-int jthread_exit(void* return_value);
+int jthread_create(thrid_t* thr, void(*start_routine)(void*), void* arg);
+int jthread_exit();
 int jthread_cancel(thrid_t thr_id);
+int jthread_join(thrid_t thr_id);
 
 /* File open modes */
 #define O_RDONLY  0x0000 /* open for reading only */

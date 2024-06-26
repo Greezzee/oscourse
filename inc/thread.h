@@ -7,6 +7,7 @@
 
 typedef int64_t thrid_t;
 typedef int32_t envid_t;
+typedef uint32_t mutexid_t;
 
 #define LOG2NTHR    12
 #define LOG2NTHR_PER_ENV 10
@@ -14,6 +15,8 @@ typedef int32_t envid_t;
 #define NTHR_PER_ENV (1 << LOG2NTHR_PER_ENV)
 #define THRX(thrid) ((thrid) & (NTHR - 1))
 #define THR_ENVX(thrid) (((thrid) & (((1 << LOG2NTHR_PER_ENV) - 1) << LOG2NTHR)) >> LOG2NTHR)
+
+#define NMUTEX NTHR
 
 struct Env;
 
@@ -24,6 +27,12 @@ enum {
     THR_NOT_RUNNABLE
 };
 
+enum {
+    THR_NOT_WAITING,
+    THR_WAITING_JOIN,
+    THR_WAITING_MUTEX,
+};
+
 struct Thr {
     struct Trapframe thr_tf; /* Saved registers */
     struct Thr* thr_next;    /* Next working Thr (NULL if the last one) of this Env */
@@ -31,10 +40,26 @@ struct Thr {
     thrid_t thr_id;          /* Unique environment identifier */
     envid_t thr_env;   /* owner env id */
 
+    unsigned thr_blocking_status;
+    int64_t thr_block; /* id of thread we are join or id of mutex we are waiting to unlock */
+
     unsigned thr_status;
     uint32_t thr_runs; /* Number of times thread has run */
 
     uintptr_t thr_stack_top;
+};
+
+struct Mutex {
+    bool mutex_is_locked;   /* is mutex in lock state */
+    bool mutex_is_reserved; /* is mutex is given to some env */
+
+    mutexid_t mutex_id; /* unique mutex id */
+    envid_t mutex_owner_envid; /* env using this mutex */
+    thrid_t mutex_owner_thrid; /* thread locking this mutex */
+
+    size_t mutex_depth; /* recursive depht of mutex (1 max for non-recusive).  */
+
+    struct Mutex* mutex_next; /* next free mutex in the mutex list */
 };
 
 #endif /* !JOS_INC_THREAD_H */

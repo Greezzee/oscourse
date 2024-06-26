@@ -159,6 +159,25 @@ sys_thr_cancel(thrid_t thr_id) {
     return 0;
 }
 
+static int
+sys_thr_join(thrid_t thr_id) {
+    
+    struct Thr* thr;
+    int res = thrid2thr(thr_id, &thr);
+    if (res < 0) {
+        cprintf("Skipping waiting\n");
+        return 0; // thr not found or free - anyway go further, don't wait anyone
+    }
+
+    cprintf("Waiting\n");
+    curthr->thr_status = THR_NOT_RUNNABLE;
+    curthr->thr_blocking_status = THR_WAITING_JOIN;
+    curthr->thr_block = thr_id;
+
+    sched_yield();
+    return 0;
+}
+
 /* Set envid's env_status to status, which must be ENV_RUNNABLE
  * or ENV_NOT_RUNNABLE.
  *
@@ -596,6 +615,8 @@ syscall(uintptr_t syscallno, uintptr_t a1, uintptr_t a2, uintptr_t a3, uintptr_t
         return sys_thr_cancel((thrid_t)a1);
     case SYS_getthrid:
         return sys_getthrid();
+    case SYS_thr_join:
+        return sys_thr_join((thrid_t)a1);
     }
     
     // LAB 10: Your code here

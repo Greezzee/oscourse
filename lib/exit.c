@@ -3,6 +3,7 @@
 
 void
 exit(void) {
-    //close_all();
+    if (thisenv->env_thr_count == 1)
+        close_all();
     sys_thr_exit();
 }
