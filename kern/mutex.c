@@ -32,7 +32,7 @@ int mutexid2mutex(mutexid_t mutexid, struct Mutex** mutex) {
 void mutex_init() {
     assert(current_space);
     mutexes = kzalloc_region(NMUTEX * sizeof(*mutexes));
-    memset(thrs, 0, ROUNDUP(NTHR * sizeof(*thrs), PAGE_SIZE));
+    memset(mutexes, 0, ROUNDUP(NMUTEX * sizeof(*mutexes), PAGE_SIZE));
 
     mutex_free_list = &mutexes[0];
 	mutexes[0].mutex_id = 0;

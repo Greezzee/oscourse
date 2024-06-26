@@ -19,6 +19,7 @@
 #include <kern/kclock.h>
 #include <kern/kdebug.h>
 #include <kern/traceopt.h>
+#include <kern/mutex.h>
 
 void
 timers_init(void) {
@@ -151,6 +152,7 @@ i386_init(void) {
     if (trace_init) cprintf("Framebuffer initialised\n");
     trap_init();
     /* User environment initialization functions */
+    mutex_init();
     thr_init();
     env_init();
     /* Choose the timer used for scheduling: hpet or pit */
