@@ -593,10 +593,10 @@ env_run(struct Env *env) {
     // LAB 3: Your code here
 
     if (curenv != NULL && curenv->env_class == ENV_CLASS_REAL_TIME) {
-            int64_t last_work_period = (int64_t)curenv->left_max_job_time - (read_tsc() - (int64_t)curenv->last_launch_time);
-            //cprintf("work_duration = %ld", work_duration);
-            curenv->left_max_job_time = last_work_period > 0 ? (uint64_t)last_work_period : 0;
-        }
+        int64_t last_work_period = (int64_t)curenv->left_max_job_time - (read_tsc() - (int64_t)curenv->last_launch_time);
+        //cprintf("work_duration = %ld", work_duration);
+        curenv->left_max_job_time = last_work_period > 0 ? (uint64_t)last_work_period : 0;
+    }
 
     if (curenv != env) 
     { // Context switch.
@@ -614,14 +614,14 @@ env_run(struct Env *env) {
     if (&curenv->address_space != current_space)
         switch_address_space(&curenv->address_space);
         
-    // struct Thr* cur_thr;
-    // int res = thrid2thr(curenv->env_thr_head, &cur_thr);
-    // if (res < 0)
-    //     panic("Running bad thr\n");
-    // thr_run(cur_thr);
+    struct Thr* cur_thr;
+    int res = thrid2thr(curenv->env_thr_head, &cur_thr);
+    if (res < 0)
+        panic("Running bad thr\n");
+    thr_run(cur_thr);
 
-    switch_address_space(&curenv->address_space);
-    env_pop_tf(&curenv->env_tf);
+    // switch_address_space(&curenv->address_space);
+    // env_pop_tf(&curenv->env_tf);
     // LAB 8: Your code here
 
     while (1)
