@@ -58,6 +58,7 @@ char *readline(const char *buf);
 
 /* syscall.c */
 #define CURENVID 0
+#define CURTHRID 0
 
 /* sys_alloc_region() specific flags */
 #define ALLOC_ZERO 0x100000 /* Allocate memory filled with 0x00 */
@@ -104,6 +105,10 @@ int vsys_gettime(void);
 
 int sys_monitor(void);
 
+thrid_t sys_getthrid(void);
+int sys_thr_exit(void);
+int sys_thr_cancel(thrid_t thr_id);
+
 /* This must be inlined. Exercise for reader: why? */
 static inline envid_t __attribute__((always_inline))
 sys_exofork(void) {
@@ -111,6 +116,15 @@ sys_exofork(void) {
     asm volatile("int %2"
                  : "=a"(ret)
                  : "a"(SYS_exofork), "i"(T_SYSCALL));
+    return ret;
+}
+
+static inline thrid_t __attribute__((always_inline))
+sys_thr_create(void) {
+    thrid_t ret;
+    asm volatile("int %2"
+                 : "=a"(ret)
+                 : "a"(SYS_thr_create), "i"(T_SYSCALL));
     return ret;
 }
 
@@ -164,6 +178,11 @@ int pipeisclosed(int pipefd);
 
 /* wait.c */
 void wait(envid_t env);
+
+/* thread.c */
+int jthread_create(thrid_t* thr, void*(*start_routine)(void*), void* arg);
+int jthread_exit(void* return_value);
+int jthread_cancel(thrid_t thr_id);
 
 /* File open modes */
 #define O_RDONLY  0x0000 /* open for reading only */

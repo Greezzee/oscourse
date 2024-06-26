@@ -11,8 +11,9 @@ typedef int32_t envid_t;
 #define LOG2NTHR    12
 #define LOG2NTHR_PER_ENV 10
 #define NTHR        (1 << LOG2NTHR)
+#define NTHR_PER_ENV (1 << LOG2NTHR_PER_ENV)
 #define THRX(thrid) ((thrid) & (NTHR - 1))
-#define THR_ENVX(thrid) ((thrid) & (((1 << LOG2NTHR_PER_ENV) - 1) << LOG2NTHR))
+#define THR_ENVX(thrid) (((thrid) & (((1 << LOG2NTHR_PER_ENV) - 1) << LOG2NTHR)) >> LOG2NTHR)
 
 struct Env;
 

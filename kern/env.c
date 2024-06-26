@@ -152,6 +152,10 @@ env_alloc(struct Env **newenv_store, envid_t parent_id, enum EnvType type) {
     if (!(env = env_free_list))
         return -E_NO_FREE_ENV;
 
+    struct Env *parent_env = NULL;
+    if (parent_id && envid2env(parent_id, &parent_env, 0) < 0)
+        return -E_BAD_ENV;
+
     /* Allocate and set up the page directory for this environment. */
     int res = init_address_space(&env->address_space);
     if (res < 0) return res;
@@ -180,7 +184,10 @@ env_alloc(struct Env **newenv_store, envid_t parent_id, enum EnvType type) {
     /* Commit the allocation */
     env_free_list = env->env_link;
 
-    res = thr_create(env->env_id); // creating main thread of env
+    uint32_t forced_thr_id = NTHR_PER_ENV;
+    if (parent_env)
+        forced_thr_id = THR_ENVX(parent_env->env_thr_cur);
+    res = thr_create(env->env_id, forced_thr_id, NULL); // creating main thread of env
     if (res < 0) {
         cprintf("Error in creating thread: %i\n", res);
         return res;
@@ -577,11 +584,11 @@ env_run(struct Env *env) {
 	}
     if (&curenv->address_space != current_space)
         switch_address_space(&curenv->address_space);
-    struct Thr* cur_thr;
-    int res = thrid2thr(curenv->env_thr_cur, &cur_thr);
+    struct Thr* head_thr;
+    int res = thrid2thr(curenv->env_thr_head, &head_thr);
     if (res < 0)
         panic("Running bad thr\n");
-    thr_run(cur_thr);
+    thr_run(head_thr);
     // LAB 8: Your code here
 
     while (1)

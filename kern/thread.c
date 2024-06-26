@@ -6,6 +6,7 @@
 #include <inc/elf.h>
 #include <inc/vsyscall.h>
 
+#include <kern/traceopt.h>
 #include <kern/pmap.h>
 #include <kern/env.h>
 #include <kern/thread.h>
@@ -30,7 +31,6 @@ int thrid2thr(thrid_t thrid, struct Thr **thr_store) {
     thr = &thrs[THRX(thrid)];
     if (thr->thr_status == THR_FREE || thr->thr_id != thrid) {
         *thr_store = NULL;
-        panic("AAAA\n");
         return -E_BAD_THR;
     }
 
@@ -67,7 +67,6 @@ int thr_alloc(struct Thr **pthr, struct Env* env, size_t low_id) {
     generation = generation | (thr - thrs);
     // mapping stack for this thr
     int res = map_region(&env->address_space, USER_STACK_TOP - (low_id + 1) * USER_STACK_SIZE, NULL, 0, USER_STACK_SIZE, PROT_R | PROT_W | PROT_USER_ | ALLOC_ZERO);
-    platform_asan_unpoison((void *)(USER_STACK_TOP - (low_id + 1) * USER_STACK_SIZE), USER_STACK_SIZE);
     if (res < 0) {
         cprintf("Allocating new thr: Region not mapped: %i\n", res);
         return res;
@@ -108,6 +107,8 @@ int thr_alloc(struct Thr **pthr, struct Env* env, size_t low_id) {
 }
 
 void thr_free(struct Thr *thr) {
+    if (trace_thread)
+        cprintf("Destroing thread: %016lx; in-env id: %08lx\n", thr->thr_id, THR_ENVX(thr->thr_id));
     thr->thr_status = THR_FREE;
     struct Env* env;
     int res = envid2env(thr->thr_env, &env, 0);
@@ -120,21 +121,29 @@ void thr_free(struct Thr *thr) {
     env->env_thr_count--;
 }
 
-int thr_create(envid_t envid) {
+int thr_create(envid_t envid, uint32_t force_thr_env_id, struct Thr** created_thr) {
     struct Env* env;
     int res = envid2env(envid, &env, 0);
     if (res < 0)
         return -E_BAD_ENV;
-    
+
     struct Thr* new_thr;
     if (env->env_thr_count == 0) {// first thread of the env
-        int res = thr_alloc(&new_thr, env, 0);
+        if (force_thr_env_id >= NTHR_PER_ENV)
+            force_thr_env_id = 0;
+        int res = thr_alloc(&new_thr, env, force_thr_env_id);
         if (res < 0)
             return res;
         env->env_thr_head = new_thr->thr_id;
         env->env_thr_count++;
         new_thr->thr_env = env->env_id;
         new_thr->thr_next = NULL;
+        if (created_thr)
+            *created_thr = new_thr;
+        if (trace_thread) {
+            cprintf("Created new head thread: %016lx; in-env id: %08lx\n", new_thr->thr_id, THR_ENVX(new_thr->thr_id));
+            cprintf("New thread's stack is at %016llx to %016lx\n", new_thr->thr_tf.tf_rsp - USER_STACK_SIZE, new_thr->thr_tf.tf_rsp);
+        }
         return 0;
     }
 
@@ -143,16 +152,24 @@ int thr_create(envid_t envid) {
     if (res < 0)
         return res;
 
-    char ustack_map[NTHR] = {};
+    char ustack_map[NTHR_PER_ENV] = {};
     while (cur_thr && cur_thr->thr_next) {       
-        ustack_map[THRX(cur_thr->thr_id)] = 1;
+        ustack_map[THR_ENVX(cur_thr->thr_id)] = 1;
         cur_thr = cur_thr->thr_next;
     }
 
-    size_t i = 0;
-    for (; i < NTHR && ustack_map[i]; i++); // searching for closest free stack segment
+    if (cur_thr)
+        ustack_map[THR_ENVX(cur_thr->thr_id)] = 1;
 
-    if (i == NTHR) 
+    size_t i = 0;
+    if (force_thr_env_id < NTHR_PER_ENV && !ustack_map[force_thr_env_id]) // check if we can create thread with non-generated id
+        i = force_thr_env_id;
+    else if (force_thr_env_id < NTHR_PER_ENV) // we can't
+        return -E_BAD_THR;
+    else
+        for (; i < NTHR_PER_ENV && ustack_map[i]; i++); // searching for closest free stack segment
+
+    if (i == NTHR_PER_ENV) 
         return -E_NO_FREE_THR;
 
     thr_alloc(&(cur_thr->thr_next), env, i);
@@ -163,6 +180,12 @@ int thr_create(envid_t envid) {
     env->env_thr_count++;
     new_thr->thr_env = env->env_id;
     new_thr->thr_next = NULL;
+    if (created_thr)
+        *created_thr = new_thr;
+    if (trace_thread) {
+        cprintf("Created new non-head thread: %016lx; in-env id: %08lx\n", new_thr->thr_id, THR_ENVX(new_thr->thr_id));
+        cprintf("New thread's stack is at %016llx to %016lx\n", new_thr->thr_tf.tf_rsp - USER_STACK_SIZE, new_thr->thr_tf.tf_rsp);
+    }
     return 0;
 }
 
@@ -206,14 +229,13 @@ int thr_destroy(thrid_t thrid) {
     if (env->env_thr_cur == thr->thr_id) {
         if (!thr->thr_next)
             env->env_thr_cur = env->env_thr_head;
-        env->env_thr_cur = thr->thr_next->thr_id;
+        else
+            env->env_thr_cur = thr->thr_next->thr_id;
     }
 
     prev_thr->thr_next = thr->thr_next;
     thr_free(thr);
 
-    if (curthr == thr)
-        sched_yield();
     return 0;
 }
 

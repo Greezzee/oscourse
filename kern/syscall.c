@@ -54,6 +54,11 @@ sys_getenvid(void) {
     return curenv->env_id;
 }
 
+static thrid_t
+sys_getthrid(void) {
+    return curthr->thr_id;
+}
+
 /* Destroy a given environment (possibly the currently running environment).
  *
  *  Returns 0 on success, < 0 on error.  Errors are:
@@ -117,6 +122,41 @@ sys_exofork(void) {
     env->binary = curenv->binary;
     thr->thr_tf.tf_regs.reg_rax = 0;
     return env->env_id;
+}
+
+static thrid_t
+sys_thr_create(void) {
+    struct Thr* thr;
+    int res = thr_create(curenv->env_id, NTHR_PER_ENV, &thr);
+    if (res < 0)
+        return res;
+    
+    uintptr_t buf_rsp = thr->thr_tf.tf_rsp;
+    thr->thr_tf = curthr->thr_tf;
+    thr->thr_tf.tf_rsp = buf_rsp;
+    thr->thr_tf.tf_regs.reg_rax = 0;
+    thr->thr_status = THR_RUNNABLE;
+    return thr->thr_id;
+}
+
+static int
+sys_thr_exit(void) {
+    thr_destroy(curthr->thr_id);
+    sched_yield();
+    return 0;
+}
+
+static int
+sys_thr_cancel(thrid_t thr_id) {
+    struct Thr* thr;
+    int res = thrid2thr(thr_id, &thr);
+    if (res < 0)
+        return res;
+    
+    thr_destroy(thr_id);
+    if (curthr == thr)
+        sched_yield();
+    return 0;
 }
 
 /* Set envid's env_status to status, which must be ENV_RUNNABLE
@@ -548,6 +588,14 @@ syscall(uintptr_t syscallno, uintptr_t a1, uintptr_t a2, uintptr_t a3, uintptr_t
         return sys_gettime();
     case SYS_monitor:
         return sys_monitor();
+    case SYS_thr_create:
+        return sys_thr_create();
+    case SYS_thr_exit:
+        return sys_thr_exit();
+    case SYS_thr_cancel:
+        return sys_thr_cancel((thrid_t)a1);
+    case SYS_getthrid:
+        return sys_getthrid();
     }
     
     // LAB 10: Your code here

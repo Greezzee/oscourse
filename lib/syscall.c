@@ -159,3 +159,15 @@ sys_gettime(void) {
 int sys_monitor(void) {
     return syscall(SYS_monitor, 0, 0, 0, 0, 0, 0, 0);
 }
+
+int sys_thr_exit(void) {
+    return syscall(SYS_thr_exit, 0, 0, 0, 0, 0, 0, 0);
+}
+
+int sys_thr_cancel(thrid_t thr_id) {
+    return syscall(SYS_thr_cancel, 0, (uintptr_t)thr_id, 0, 0, 0, 0, 0);
+}
+
+thrid_t sys_getthrid(void) {
+    return syscall(SYS_getthrid, 0, 0, 0, 0, 0, 0, 0);
+}

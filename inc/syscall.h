@@ -21,6 +21,10 @@ enum {
     SYS_ipc_recv,
     SYS_gettime,
     SYS_monitor,
+    SYS_thr_create,
+    SYS_thr_exit,
+    SYS_thr_cancel,
+    SYS_getthrid,
     NSYSCALLS
 };
 

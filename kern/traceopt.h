@@ -50,4 +50,8 @@
 #define trace_init 1
 #endif
 
+#ifndef trace_thread
+#define trace_thread 0
+#endif
+
 #endif

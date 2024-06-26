@@ -433,8 +433,8 @@ trap(struct Trapframe *tf) {
     /* If we made it to this point, then no other environment was
      * scheduled, so we should return to the current environment
      * if doing so makes sense */
-    if (curenv && curenv->env_status == ENV_RUNNING)
-        env_run(curenv);
+    if (curthr && curthr->thr_status == THR_RUNNING)
+        thr_run(curthr);
     else
         sched_yield();
 }

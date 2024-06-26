@@ -1,8 +1,9 @@
 #include <inc/assert.h>
 #include <inc/x86.h>
 #include <kern/env.h>
+#include <kern/thread.h>
 #include <kern/monitor.h>
-
+#include <kern/traceopt.h>
 
 struct Taskstate cpu_ts;
 _Noreturn void sched_halt(void);
@@ -25,6 +26,14 @@ sched_yield(void) {
      * below to halt the cpu */
 
     struct Env *next_env = curenv ? curenv : envs - 1;
+
+    if (curthr && curthr->thr_next && curthr->thr_next->thr_status == THR_RUNNABLE) {
+        if (trace_thread) {
+            cprintf("[sched] Running next thr: %016lx; in-env id: %08lx\n", curthr->thr_next->thr_id, THR_ENVX(curthr->thr_next->thr_id));
+            cprintf("[sched] thread's stack is at %016llx to %016lx\n", curthr->thr_next->thr_tf.tf_rsp - USER_STACK_SIZE, curthr->thr_next->thr_tf.tf_rsp);
+        }
+        thr_run(curthr->thr_next);
+    }
 
     for (int32_t i = 0; i < NENV; ++i) {
         next_env++;

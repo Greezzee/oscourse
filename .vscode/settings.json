@@ -12,6 +12,7 @@
         "vsyscall.h": "c",
         "mmu.h": "c",
         "types.h": "c",
-        "stdbool.h": "c"
+        "stdbool.h": "c",
+        "traceopt.h": "c"
     }
 }
