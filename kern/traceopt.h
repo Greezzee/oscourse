@@ -35,12 +35,14 @@
 #define trace_envs 1
 #endif
 
-#if LAB == 4 || LAB == 3
-#undef trace_envs_more
+// #if LAB == 4 || LAB == 3
+// #undef trace_envs_more
+// #define trace_envs_more 1
+// #elif !defined(trace_envs_more)
+// #define trace_envs_more 0
+// #endif
+
 #define trace_envs_more 1
-#elif !defined(trace_envs_more)
-#define trace_envs_more 0
-#endif
 
 #ifndef trace_spinlock
 #define trace_spinlock 0

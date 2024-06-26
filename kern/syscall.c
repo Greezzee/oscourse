@@ -94,6 +94,12 @@ sys_yield(void) {
     sched_yield();
 }
 
+static void
+sys_periodic_wait(void) {
+    curenv->env_status = ENV_NOT_RUNNABLE;
+    sched_yield();
+}
+
 /* Allocate a new environment.
  * Returns envid of new environment, or < 0 on error.  Errors are:
  *  -E_NO_FREE_ENV if no free environment is available.
@@ -108,7 +114,7 @@ sys_exofork(void) {
 
     // LAB 9: Your code here
     struct Env *env;
-    int res = env_alloc(&env, curenv->env_id, ENV_TYPE_USER);
+    int res = env_alloc(&env, curenv->env_id, ENV_TYPE_USER, ENV_CLASS_USUAL);  //  TODO: should be non-const additional parameter here?
     if (res < 0) {
         return res;
     }
@@ -624,6 +630,9 @@ syscall(uintptr_t syscallno, uintptr_t a1, uintptr_t a2, uintptr_t a3, uintptr_t
         return sys_env_set_pgfault_upcall((envid_t) a1, (void *)a2);
     case SYS_yield:
         sys_yield();
+        return 0;
+    case SYS_periodic_wait:
+        sys_periodic_wait();
         return 0;
     case SYS_ipc_try_send:
         return sys_ipc_try_send((envid_t)a1, (uint32_t)a2, a3,(size_t)a4,(int)a5);

@@ -146,7 +146,7 @@ env_init(void) {
  *    -E_NO_MEM on memory exhaustion
  */
 int
-env_alloc(struct Env **newenv_store, envid_t parent_id, enum EnvType type) {
+env_alloc(struct Env **newenv_store, envid_t parent_id, enum EnvType type, enum EnvClass env_class) {
 
     struct Env *env;
     if (!(env = env_free_list))
@@ -173,10 +173,14 @@ env_alloc(struct Env **newenv_store, envid_t parent_id, enum EnvType type) {
 #else
     env->env_type = type;
 #endif
+    env->env_class = env_class;
     env->env_status = ENV_RUNNABLE;
 
     /* Clear the page fault handler until user installs one. */
     env->env_pgfault_upcall = 0;
+
+    /* The same with deadline exceed handler */
+    env->env_deadline_exceed_handler = 0;
 
     /* Also clear the IPC receiving flag. */
     env->env_ipc_recving = 0;
@@ -461,7 +465,7 @@ load_icode(struct Env *env, uint8_t *binary, size_t size) {
  * The new env's parent ID is set to 0.
  */
 void
-env_create(uint8_t *binary, size_t size, enum EnvType type) {
+env_create(uint8_t *binary, size_t size, enum EnvType type, enum EnvClass env_class, uint64_t period, uint64_t deadline, uint64_t max_job_time, void* env_deadline_exceed_handler) {
     // LAB 3: Your code here
     if (!binary)
 		panic("env_create: null pointer 'binary'\n");
@@ -469,8 +473,20 @@ env_create(uint8_t *binary, size_t size, enum EnvType type) {
 	// Allocate an environment.
 	struct Env *env;
 	int r;
-	if ((r = env_alloc(&env, 0, type)) < 0)
+	if ((r = env_alloc(&env, 0, type, env_class)) < 0)
 		panic("env_create: %i\n", r);
+
+    //  Add additional info for real-time processes
+    if (env_class == ENV_CLASS_REAL_TIME) {
+        env->period = period;
+        env->deadline = deadline;
+        env->max_job_time = max_job_time;
+        env->left_max_job_time = max_job_time;
+        env->last_launch_time = 0;
+        env->last_period_start_moment = read_tsc();
+        env->env_deadline_exceed_handler = env_deadline_exceed_handler;
+    }
+
 	// Load the program using the page directory of its environment.
 	load_icode(env, binary, size);
     // LAB 8: Your code here
@@ -569,11 +585,18 @@ env_run(struct Env *env) {
     assert(env);
     if (trace_envs_more) {
         const char *state[] = {"FREE", "DYING", "RUNNABLE", "RUNNING", "NOT_RUNNABLE"};
-        if (curenv) cprintf("[%08X] env stopped: %s\n", curenv->env_id, state[curenv->env_status]);
-        cprintf("[%08X] env started: %s\n", env->env_id, state[env->env_status]);
+        const char *env_classes[] = {"USUAL", "RUNTIME"};
+        if (curenv) cprintf("[%08X] %s env stopped: %s\n", curenv->env_id, env_classes[curenv->env_class], state[curenv->env_status]);
+        cprintf("[%08X] %s env started: %s\n", env->env_id, env_classes[env->env_class], state[env->env_status]);
     }
 
     // LAB 3: Your code here
+
+    if (curenv != NULL && curenv->env_class == ENV_CLASS_REAL_TIME) {
+            int64_t last_work_period = (int64_t)curenv->left_max_job_time - (read_tsc() - (int64_t)curenv->last_launch_time);
+            //cprintf("work_duration = %ld", work_duration);
+            curenv->left_max_job_time = last_work_period > 0 ? (uint64_t)last_work_period : 0;
+        }
 
     if (curenv != env) 
     { // Context switch.
@@ -582,14 +605,23 @@ env_run(struct Env *env) {
 		curenv = env;
 		curenv->env_status = ENV_RUNNING;
 	}
+
+    if (curenv->env_class == ENV_CLASS_REAL_TIME) {
+        curenv->last_launch_time = read_tsc();
+        cprintf("last_launch_time = %ld\n", curenv->last_launch_time);
+    }
+
     if (&curenv->address_space != current_space)
         switch_address_space(&curenv->address_space);
         
-    struct Thr* cur_thr;
-    int res = thrid2thr(curenv->env_thr_head, &cur_thr);
-    if (res < 0)
-        panic("Running bad thr\n");
-    thr_run(cur_thr);
+    // struct Thr* cur_thr;
+    // int res = thrid2thr(curenv->env_thr_head, &cur_thr);
+    // if (res < 0)
+    //     panic("Running bad thr\n");
+    // thr_run(cur_thr);
+
+    switch_address_space(&curenv->address_space);
+    env_pop_tf(&curenv->env_tf);
     // LAB 8: Your code here
 
     while (1)
