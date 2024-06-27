@@ -265,9 +265,8 @@ sys_env_set_pgfault_upcall(envid_t envid, void *func) {
 
 static int
 sys_env_change_class(envid_t envid, enum EnvClass new_env_class, uint64_t period, uint64_t deadline, uint64_t max_job_time) {
-    cprintf("Start changing class in kenral...\n");
     struct Env *env;
-    if (envid2env(envid, &env, 1) < 0) {
+    if (envid2env(envid, &env, 0) < 0) {
         return -E_BAD_ENV;
     }
 

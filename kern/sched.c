@@ -78,8 +78,8 @@ sched_thr_yield(struct Env* env) {
         return NULL;
     }
     else {
-        if (trace_sched)
-            cprintf("Processing real-time process in sched_thr_yield...\n");
+        //if (trace_sched)
+        cprintf("Processing real-time process in sched_thr_yield...\n");
 
         struct Thr* possible_next_thr = NULL;
         thrid2thr(env->env_thr_head, &possible_next_thr);
@@ -133,7 +133,7 @@ sched_env_yield(void) {
     int32_t run_time_indices[NENV];
     int32_t rt_ind = 0;
     
-    for (int32_t i = 0; i < NENV; ++i) {
+    for (int32_t i = 0; i < NENV; ++i) if (envs[i].env_status != ENV_FREE) {
         switch (envs[i].env_class) {
             case ENV_CLASS_REAL_TIME:
                 //  if the process reached the deadline and didn't finish
