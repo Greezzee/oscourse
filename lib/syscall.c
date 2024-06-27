@@ -143,6 +143,11 @@ sys_env_set_pgfault_upcall(envid_t envid, void *upcall) {
 }
 
 int
+sys_env_set_exceed_deadline_upcall(envid_t envid, void *upcall) {
+    return syscall(SYS_env_set_exceed_deadline_upcall, 1, envid, (uintptr_t)upcall, 0, 0, 0, 0);
+}
+
+int
 sys_env_change_class(envid_t envid, enum EnvClass new_env_class, uint64_t period, uint64_t deadline, uint64_t max_job_time) {
     return syscall(SYS_env_change_class, 0, envid, new_env_class, period, deadline, max_job_time, 0);
 }

@@ -182,6 +182,8 @@ env_alloc(struct Env **newenv_store, envid_t parent_id, enum EnvType type, enum 
     /* The same with deadline exceed handler */
     env->env_deadline_exceed_handler = 0;
 
+    env->exceed_deadline_upcall = 0;
+
     /* Also clear the IPC receiving flag. */
     env->env_ipc_recving = 0;
 

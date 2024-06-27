@@ -264,6 +264,17 @@ sys_env_set_pgfault_upcall(envid_t envid, void *func) {
 }
 
 static int
+sys_env_set_exceed_deadline_upcall(envid_t envid, void* func) {
+    struct Env *env;
+    if (envid2env(envid, &env, 1) < 0) {
+        return -E_BAD_ENV;
+    }
+
+    env->exceed_deadline_upcall = func;
+    return 0;
+}
+
+static int
 sys_env_change_class(envid_t envid, enum EnvClass new_env_class, uint64_t period, uint64_t deadline, uint64_t max_job_time) {
     struct Env *env;
     if (envid2env(envid, &env, 0) < 0) {
@@ -640,6 +651,8 @@ syscall(uintptr_t syscallno, uintptr_t a1, uintptr_t a2, uintptr_t a3, uintptr_t
         return sys_unmap_region((envid_t) a1, a2,(size_t)a3);
     case SYS_env_set_pgfault_upcall:
         return sys_env_set_pgfault_upcall((envid_t) a1, (void *)a2);
+    case SYS_env_set_exceed_deadline_upcall:
+        return sys_env_set_exceed_deadline_upcall((envid_t) a1, (void *)a2);
     case SYS_env_change_class:
         return sys_env_change_class((envid_t) a1, (enum EnvClass)a2, (uint64_t)a3, (uint64_t)a4, (uint64_t)a5);
     case SYS_yield:
