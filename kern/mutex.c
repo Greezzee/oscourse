@@ -20,7 +20,7 @@ int mutexid2mutex(mutexid_t mutexid, struct Mutex** mutex) {
         return -E_BAD_MUTEX;
 
     buf = &mutexes[mutexid];
-    if (!buf->mutex_is_reserved == THR_FREE || buf->mutex_id != mutexid) {
+    if (!buf->mutex_is_reserved || buf->mutex_id != mutexid) {
         *mutex = NULL;
         return -E_BAD_MUTEX;
     }

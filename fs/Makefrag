@@ -36,7 +36,7 @@ USERAPPS :=		$(OBJDIR)/user/init \
 			$(OBJDIR)/user/monitor \
 			$(OBJDIR)/user/filldisk \
 			$(OBJDIR)/user/itask_threads \
-
+			$(OBJDIR)/user/itask_mutex \
 
 FSIMGFILES := $(FSIMGTXTFILES) $(USERAPPS)
 

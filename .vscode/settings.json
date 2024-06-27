@@ -17,6 +17,8 @@
         "thread.h": "c",
         "pmap.h": "c",
         "sched.h": "c",
-        "random": "c"
+        "random": "c",
+        "stdatomic.h": "c",
+        "complex": "c"
     }
 }
