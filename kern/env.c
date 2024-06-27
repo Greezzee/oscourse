@@ -608,7 +608,8 @@ env_run(struct Env *env, struct Thr* thr) {
 
     if (curenv->env_class == ENV_CLASS_REAL_TIME) {
         curenv->last_launch_time = read_tsc();
-        cprintf("last_launch_time = %ld\n", curenv->last_launch_time);
+        if (trace_sched)
+            cprintf("last_launch_time = %ld\n", curenv->last_launch_time);
     }
 
     if (&curenv->address_space != current_space)

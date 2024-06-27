@@ -183,8 +183,8 @@ i386_init(void) {
 #else
     /* Touch all you want. */
     ENV_CREATE(user_icode, ENV_TYPE_USER);
-    //ENV_CREATE_DIFF_CLASS(user_icode, ENV_TYPE_USER, ENV_CLASS_REAL_TIME, 1e10, 5 * 1e9, 1e9, (void*)deadline_exceed_handler);
-    //ENV_CREATE_DIFF_CLASS(user_icode, ENV_TYPE_USER, ENV_CLASS_REAL_TIME, 1e10, 1e9, 4 * 1e8, (void*)deadline_exceed_handler);
+    //ENV_CREATE_DIFF_CLASS(user_simple_change_class_test, ENV_TYPE_USER, ENV_CLASS_REAL_TIME, 1e10, 5 * 1e9, 1e9, (void*)deadline_exceed_handler);
+    //ENV_CREATE_DIFF_CLASS(user_icode, ENV_TYPE_USER, ENV_CLASS_REAL_TIME, 1e10, 1e9, 4 * 1e9, (void*)deadline_exceed_handler);
 #endif /* TEST* */
 #endif
 

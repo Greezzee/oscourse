@@ -28,10 +28,8 @@
 #define trace_pagefaults 0
 #endif
 
-#if LAB == 9 || LAB == 8 || LAB == 3
-#undef trace_envs
-#define trace_envs 1
-#elif !defined(trace_envs)
+
+#ifndef trace_envs
 #define trace_envs 1
 #endif
 

@@ -263,6 +263,21 @@ sys_env_set_pgfault_upcall(envid_t envid, void *func) {
     return 0;
 }
 
+static int
+sys_env_change_class(envid_t envid, enum EnvClass new_env_class, uint64_t period, uint64_t deadline, uint64_t max_job_time) {
+    cprintf("Start changing class in kenral...\n");
+    struct Env *env;
+    if (envid2env(envid, &env, 1) < 0) {
+        return -E_BAD_ENV;
+    }
+
+    env->env_class = new_env_class;
+    env->period = period;
+    env->deadline = deadline;
+    env->max_job_time = max_job_time;
+    return 0;
+}
+
 /* Allocate a region of memory and map it at 'va' with permission
  * 'perm' in the address space of 'envid'.
  * The page's contents are set to 0.
@@ -626,6 +641,8 @@ syscall(uintptr_t syscallno, uintptr_t a1, uintptr_t a2, uintptr_t a3, uintptr_t
         return sys_unmap_region((envid_t) a1, a2,(size_t)a3);
     case SYS_env_set_pgfault_upcall:
         return sys_env_set_pgfault_upcall((envid_t) a1, (void *)a2);
+    case SYS_env_change_class:
+        return sys_env_change_class((envid_t) a1, (enum EnvClass)a2, (uint64_t)a3, (uint64_t)a4, (uint64_t)a5);
     case SYS_yield:
         sys_yield();
         return 0;

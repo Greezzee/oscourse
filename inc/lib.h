@@ -95,6 +95,7 @@ static envid_t sys_exofork(void);
 int sys_env_set_status(envid_t env, int status);
 int sys_env_set_trapframe(envid_t env, struct Trapframe *tf);
 int sys_env_set_pgfault_upcall(envid_t env, void *upcall);
+int sys_env_change_class(envid_t envid, enum EnvClass new_env_class, uint64_t period, uint64_t deadline, uint64_t max_job_time);
 int sys_alloc_region(envid_t env, void *pg, size_t size, int perm);
 int sys_map_region(envid_t src_env, void *src_pg,
                    envid_t dst_env, void *dst_pg, size_t size, int perm);

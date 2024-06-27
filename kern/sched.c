@@ -11,8 +11,10 @@ struct Taskstate cpu_ts;
 _Noreturn void sched_halt(void);
 
 int64_t get_sheduler_metric(struct Env* env) {
-    int64_t left_time_to_deadline = (int64_t)(env->deadline) - (int64_t)env->last_period_start_moment;
-    //cprintf("last_period_start_moment = %ld\n", (int64_t)env->last_period_start_moment);
+    int64_t left_time_to_deadline = (int64_t)env->last_period_start_moment + (int64_t)(env->deadline) - (int64_t)read_tsc();
+    if (trace_sched) {
+        cprintf("last_period_start_moment = %ld\n", (int64_t)env->last_period_start_moment);
+    }
     int64_t metric = left_time_to_deadline - (int64_t)env->left_max_job_time;
     return metric > 0 ? metric : 0;
 }

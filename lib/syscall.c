@@ -143,6 +143,11 @@ sys_env_set_pgfault_upcall(envid_t envid, void *upcall) {
 }
 
 int
+sys_env_change_class(envid_t envid, enum EnvClass new_env_class, uint64_t period, uint64_t deadline, uint64_t max_job_time) {
+    return syscall(SYS_env_change_class, 1, envid, new_env_class, period, deadline, max_job_time, 0);
+}
+
+int
 sys_ipc_try_send(envid_t envid, uintptr_t value, void *srcva, size_t size, int perm) {
     return syscall(SYS_ipc_try_send, 0, envid, value, (uintptr_t)srcva, size, perm, 0);
 }
