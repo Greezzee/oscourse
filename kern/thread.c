@@ -319,6 +319,7 @@ void thr_process_not_runnable(struct Thr *thr) {
         struct Thr* waited_thr;
         if (thrid2thr(thr->thr_block, &waited_thr) < 0) {
             thr->thr_status = THR_RUNNABLE;
+            thr->thr_blocking_status = THR_NOT_WAITING;
             thr->thr_tf.tf_regs.reg_rax = 0;
         }
     }
@@ -332,6 +333,15 @@ void thr_process_not_runnable(struct Thr *thr) {
 
         if (!mutex->mutex_is_locked) {
             thr->thr_status = THR_RUNNABLE;
+            thr->thr_blocking_status = THR_NOT_WAITING;
+            thr->thr_tf.tf_regs.reg_rax = 0;
+        }
+    }
+
+    if (thr->thr_blocking_status == THR_WAITING_TIMER) {
+        if (read_tsc() > (uint64_t)thr->thr_block) {
+            thr->thr_status = THR_RUNNABLE;
+            thr->thr_blocking_status = THR_NOT_WAITING;
             thr->thr_tf.tf_regs.reg_rax = 0;
         }
     }

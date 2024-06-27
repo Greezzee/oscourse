@@ -34,6 +34,7 @@ enum {
     SYS_mutex_destroy,
     SYS_mutex_block_thr,
     SYS_mutex_unlock,
+    SYS_thr_sleep,
     NSYSCALLS
 };
 

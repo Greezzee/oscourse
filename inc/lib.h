@@ -117,6 +117,7 @@ thrid_t sys_getthrid(void);
 int sys_thr_exit(void);
 int sys_thr_cancel(thrid_t thr_id);
 int sys_thr_join(thrid_t thr_id);
+int sys_thr_sleep(uint64_t timeout);
 
 mutexid_t sys_mutex_create();
 int sys_mutex_destroy(mutexid_t mutexid);
@@ -201,6 +202,7 @@ int jthread_create(thrid_t* thr, void(*start_routine)(void*), void* arg);
 int jthread_exit();
 int jthread_cancel(thrid_t thr_id);
 int jthread_join(thrid_t thr_id);
+int jthread_sleep(uint64_t timeout);
 
 typedef int jthread_mutex;
 

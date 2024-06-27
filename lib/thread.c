@@ -31,6 +31,10 @@ int jthread_join(thrid_t thr_id) {
     return sys_thr_join(thr_id);
 }
 
+int jthread_sleep(uint64_t timeout) {
+    return sys_thr_sleep(timeout);
+}
+
 struct jthread_mutex_data {
     mutexid_t global_mutex_id;
     bool is_init;

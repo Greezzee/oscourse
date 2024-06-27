@@ -4,6 +4,9 @@ void thr1(void* arg) {
     (void)arg;
     cprintf("1: hello, world from thr1\n");
     cprintf("1: i am environment %08x, thread %016lx\n", thisenv->env_id, thisenv->env_thr_cur);
+    cprintf("1: I'm going to sleep\n");
+    jthread_sleep(2000);
+    cprintf("1: I woke up!\n");
 }
 
 void thr2(void* arg) {
@@ -42,7 +45,8 @@ umain(int argc, char **argv) {
     cprintf("0: created thread2 %016lx\n", thr2_id);
     sys_yield();
     cprintf("0: I gave my brothers a time to work\n");
-    cprintf("0: starting waiting for thread 2\n");
+    cprintf("0: starting waiting for thread 1 and 2\n");
+    jthread_join(thr1_id);
     jthread_join(thr2_id);
     cprintf("0: Thread 2 is done, going further\n");
     jthread_create(&thr3_id, thr3, NULL);

@@ -215,3 +215,7 @@ int sys_mutex_block_thr(mutexid_t mutexid, thrid_t owner_thr) {
 int sys_mutex_unlock(mutexid_t mutexid) {
     return syscall(SYS_mutex_unlock, 0, (uintptr_t)mutexid, 0, 0, 0, 0, 0);
 }
+
+int sys_thr_sleep(uint64_t timeout) {
+    return syscall(SYS_thr_sleep, 0, (uintptr_t)timeout, 0, 0, 0, 0, 0);
+}

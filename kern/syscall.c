@@ -183,6 +183,14 @@ sys_thr_join(thrid_t thr_id) {
     return 0;
 }
 
+static int
+sys_thr_sleep(uint64_t timeout) {
+    curthr->thr_status = THR_NOT_RUNNABLE;
+    curthr->thr_blocking_status = THR_WAITING_TIMER;
+    curthr->thr_block = (int64_t)(read_tsc() + timeout * get_cpu_freq("hpet0") / 1000);
+    sched_yield();
+}
+
 static mutexid_t
 sys_mutex_create() {
     struct Mutex* mutex;
@@ -720,6 +728,8 @@ syscall(uintptr_t syscallno, uintptr_t a1, uintptr_t a2, uintptr_t a3, uintptr_t
         return sys_mutex_block_thr((mutexid_t)a1, (thrid_t)a2);
     case SYS_mutex_unlock:
         return sys_mutex_unlock((mutexid_t)a1);
+    case SYS_thr_sleep:
+        return sys_thr_sleep(a1);
     }
     
     // LAB 10: Your code here
