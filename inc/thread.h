@@ -15,6 +15,7 @@ typedef int32_t mutexid_t;
 #define NTHR_PER_ENV (1 << LOG2NTHR_PER_ENV)
 #define THRX(thrid) ((thrid) & (NTHR - 1))
 #define THR_ENVX(thrid) (((thrid) & (((1 << LOG2NTHR_PER_ENV) - 1) << LOG2NTHR)) >> LOG2NTHR)
+#define DEFAULT_PRIORITY 1
 
 #define NMUTEX NTHR
 
@@ -49,6 +50,8 @@ struct Thr {
     uint32_t thr_runs; /* Number of times thread has run */
 
     uintptr_t thr_stack_top;
+
+    uint32_t fixed_priority;
 };
 
 struct Mutex {

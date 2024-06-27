@@ -1,3 +1,4 @@
+#include "thread.h"
 #include <inc/assert.h>
 #include <inc/x86.h>
 #include <kern/env.h>
@@ -10,8 +11,10 @@ struct Taskstate cpu_ts;
 _Noreturn void sched_halt(void);
 
 int64_t get_sheduler_metric(struct Env* env) {
-    int64_t left_time_to_deadline = (int64_t)(env->deadline) - (int64_t)env->last_period_start_moment;
-    //cprintf("last_period_start_moment = %ld\n", (int64_t)env->last_period_start_moment);
+    int64_t left_time_to_deadline = (int64_t)env->last_period_start_moment + (int64_t)(env->deadline) - (int64_t)read_tsc();
+    if (trace_sched) {
+        cprintf("last_period_start_moment = %ld\n", (int64_t)env->last_period_start_moment);
+    }
     int64_t metric = left_time_to_deadline - (int64_t)env->left_max_job_time;
     return metric > 0 ? metric : 0;
 }
@@ -33,6 +36,75 @@ void insertion_sort(int32_t n, int32_t ind_arr[], struct Env *envs)
         ind_arr[location+1] = newElement;
     }
 }
+
+/* Choose a thread in certain environment to run */
+struct Thr*
+sched_thr_yield(struct Env* env) {
+    if (env == NULL)
+        return NULL;
+
+    if (env->env_class == ENV_CLASS_USUAL) {
+        if (trace_sched)
+            cprintf("Processing usual process in sched_thr_yield...\n");
+
+        struct Thr* cur_thr;
+        if (curthr == NULL) {
+            int res = thrid2thr(env->env_thr_cur, &cur_thr);
+            if (res < 0)
+                panic("Running bad thr\n");
+        }
+        else {
+            cur_thr = curthr;
+        }
+        
+        struct Thr* possible_next_thr = cur_thr->thr_next;
+        
+        if (!possible_next_thr)
+            thrid2thr(env->env_thr_head, &possible_next_thr);
+
+        while (possible_next_thr != cur_thr) {     
+            if (possible_next_thr->thr_status == THR_NOT_RUNNABLE)
+                thr_process_not_runnable(possible_next_thr);
+
+            if (possible_next_thr->thr_status == THR_RUNNABLE)
+                return possible_next_thr;
+            
+            possible_next_thr = possible_next_thr->thr_next;
+
+            if (!possible_next_thr)
+                thrid2thr(env->env_thr_head, &possible_next_thr);
+        }
+
+        return NULL;
+    }
+    else {
+        //if (trace_sched)
+        cprintf("Processing real-time process in sched_thr_yield...\n");
+
+        struct Thr* possible_next_thr = NULL;
+        thrid2thr(env->env_thr_head, &possible_next_thr);
+
+        struct Thr* next_thread = NULL;
+
+        uint32_t max_priority = 0;
+        while (possible_next_thr != NULL) {
+            if (possible_next_thr->fixed_priority > max_priority) {
+                max_priority = possible_next_thr->fixed_priority;
+
+                if (possible_next_thr->thr_status == THR_NOT_RUNNABLE)
+                    thr_process_not_runnable(possible_next_thr);
+
+                if (possible_next_thr->thr_status == THR_RUNNABLE)
+                    next_thread = possible_next_thr;
+                
+                possible_next_thr = possible_next_thr->thr_next;
+            }
+        }
+
+        return next_thread;
+    }
+}
+
 
 /* Choose a user environment to run and run it */
 _Noreturn void
@@ -61,7 +133,7 @@ sched_env_yield(void) {
     int32_t run_time_indices[NENV];
     int32_t rt_ind = 0;
     
-    for (int32_t i = 0; i < NENV; ++i) {
+    for (int32_t i = 0; i < NENV; ++i) if (envs[i].env_status != ENV_FREE) {
         switch (envs[i].env_class) {
             case ENV_CLASS_REAL_TIME:
                 //  if the process reached the deadline and didn't finish
@@ -141,24 +213,20 @@ sched_env_yield(void) {
         }
     }
 
-    // for (int32_t i = 0; i < rt_ind; ++i) {
-    //     next_env++;
-    //     if (next_env == envs + NENV) {
-    //         next_env = envs;
-    //     }
-    //     if (next_env->env_status == ENV_RUNNABLE) {
-    //         break;
-    //     }
-    // }
-
     if (trace_sched)
         cprintf("Next process for run: [%08X]\n", next_env->env_id);
 
+    if (trace_sched)
+        cprintf("Start sched_thr_yield in sched_env_yield...\n");
+    struct Thr* next_thread = sched_thr_yield(next_env);
+    if (trace_sched)
+        cprintf("End sched_thr_yield in sched_env_yield, next_possible_thread = %p\n", next_thread);
+
     if (next_env->env_status == ENV_RUNNABLE) {
-        env_run(next_env);
+        env_run(next_env, next_thread);
     } else if (next_env->env_status == ENV_RUNNING) {
         assert(next_env == curenv);
-        env_run(next_env);
+        env_run(next_env, next_thread);
     }
 
     cprintf("Halt\n");
@@ -170,31 +238,48 @@ sched_env_yield(void) {
 
 _Noreturn void
 sched_yield(void) {
-    if (!curenv || !curthr)
+    if (trace_sched)
+        cprintf("Starting sched_yield...\n");
+    if (!curenv || !curthr) {
+        if (trace_sched)
+            cprintf("No curenv or curthr, starting sched_env_yield...\n");
         sched_env_yield();
+    }
     
-    if (curenv->env_status != ENV_RUNNING)
+    if (curenv->env_status != ENV_RUNNING) {
+        if (trace_sched)
+            cprintf("Curenv is not running, starting sched_env_yield...\n");
         sched_env_yield();
-
-    struct Thr* possible_next_thr = curthr->thr_next;
+    }
     
-    if (!possible_next_thr)
-        thrid2thr(curenv->env_thr_head, &possible_next_thr);
+    // if (!possible_next_thr)
+    //     thrid2thr(curenv->env_thr_head, &possible_next_thr);
 
-    while (possible_next_thr != curthr) {     
-        if (possible_next_thr->thr_status == THR_NOT_RUNNABLE)
-            thr_process_not_runnable(possible_next_thr);
+    // while (possible_next_thr != curthr) {     
+    //     if (possible_next_thr->thr_status == THR_NOT_RUNNABLE)
+    //         thr_process_not_runnable(possible_next_thr);
 
-        if (possible_next_thr->thr_status == THR_RUNNABLE)
-            thr_run(possible_next_thr);
+    //     if (possible_next_thr->thr_status == THR_RUNNABLE)
+    //         thr_run(possible_next_thr);
         
-        possible_next_thr = possible_next_thr->thr_next;
+    //     possible_next_thr = possible_next_thr->thr_next;
 
-        if (!possible_next_thr)
-            thrid2thr(curenv->env_thr_head, &possible_next_thr);
+    //     if (!possible_next_thr)
+    //         thrid2thr(curenv->env_thr_head, &possible_next_thr);
+    // }
+
+    struct Thr* possible_next_thr = sched_thr_yield(curenv);
+    if (possible_next_thr != NULL) {
+        if (trace_sched)
+            cprintf("Found thread for launch in sched_yield, running...\n");
+        thr_run(possible_next_thr);
+    }
+    else {
+        if (trace_sched)
+            cprintf("Not found thread for launch in sched_yield, running sched_env_yield...\n");
+        sched_env_yield();
     }
 
-    sched_env_yield();
     cprintf("Halt\n");
 
     /* No runnable environments,

@@ -126,6 +126,7 @@ KERN_BINFILES :=	user/hello \
 			user/faultnostack \
 			user/faultbadhandler \
 			user/faultevilhandler \
+			user/simple_change_class_test \
 			
 KERN_BINFILES := $(patsubst %, $(OBJDIR)/%, $(KERN_BINFILES))
 endif

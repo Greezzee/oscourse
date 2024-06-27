@@ -584,7 +584,7 @@ csys_yield(struct Trapframe *tf) {
  *    env->env_tf to sensible values.
  */
 _Noreturn void
-env_run(struct Env *env) {
+env_run(struct Env *env, struct Thr* thr) {
     //cprintf("Env run\n");
     assert(env);
     if (trace_envs_more) {
@@ -612,17 +612,23 @@ env_run(struct Env *env) {
 
     if (curenv->env_class == ENV_CLASS_REAL_TIME) {
         curenv->last_launch_time = read_tsc();
-        cprintf("last_launch_time = %ld\n", curenv->last_launch_time);
+        if (trace_sched)
+            cprintf("last_launch_time = %ld\n", curenv->last_launch_time);
     }
 
     if (&curenv->address_space != current_space)
         switch_address_space(&curenv->address_space);
         
-    struct Thr* cur_thr;
-    int res = thrid2thr(curenv->env_thr_cur, &cur_thr);
-    if (res < 0)
-        panic("Running bad thr\n");
-    thr_run(cur_thr);
+    if (thr == NULL) {
+        struct Thr* cur_thr;
+        int res = thrid2thr(curenv->env_thr_cur, &cur_thr);
+        if (res < 0)
+            panic("Running bad thr\n");
+        thr_run(cur_thr);
+    }
+    else {
+        thr_run(thr);
+    }
 
     // switch_address_space(&curenv->address_space);
     // env_pop_tf(&curenv->env_tf);

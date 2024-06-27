@@ -14,6 +14,7 @@ void thr_init();
 int thr_alloc(struct Thr **pthr, struct Env* env, size_t low_id);
 void thr_free(struct Thr *thr);
 int thr_create(envid_t envid, uint32_t force_thr_env_id, struct Thr** created_thr);
+int thr_create_with_priority(envid_t envid, uint32_t force_thr_env_id, struct Thr** created_thr, uint32_t fixed_priority);
 int thr_destroy(thrid_t thrid);
 _Noreturn void thr_pop_tf(struct Trapframe *tf);
 _Noreturn void thr_run(struct Thr *thr);
