@@ -36,6 +36,7 @@ KERN_SRCFILES := kern/bootstrap.S \
 			kern/uefi.c \
 			kern/uefiasm.S \
 			kern/spinlock.c \
+			kern/ipc.c
 			kern/thread.c \
 			kern/mutex.c \
 
@@ -116,6 +117,15 @@ KERN_BINFILES :=	user/hello \
 			user/filldisk \
 			user/itask_threads \
 			user/itask_mutex \
+			user/itask_sleep \
+			user/itask_ipc_timed \
+#			user/faultdie \
+			user/faultregs \
+			user/faultalloc \
+			user/faultallocbad \
+			user/faultnostack \
+			user/faultbadhandler \
+			user/faultevilhandler \
 			
 KERN_BINFILES := $(patsubst %, $(OBJDIR)/%, $(KERN_BINFILES))
 endif

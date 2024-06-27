@@ -36,6 +36,7 @@ enum {
     E_MUTEX_LOCKED = 24,
     E_NO_FREE_MUTEX = 25,
 
+    E_TIMEOUT = 26,
     MAXERROR
 };
 

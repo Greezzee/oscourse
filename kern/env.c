@@ -18,6 +18,7 @@
 #include <kern/traceopt.h>
 #include <kern/trap.h>
 #include <kern/vsyscall.h>
+#include <kern/ipc.h>
 #include <kern/thread.h>
 
 /* Currently active environment */
@@ -491,6 +492,12 @@ env_create(uint8_t *binary, size_t size, enum EnvType type, enum EnvClass env_cl
 	load_icode(env, binary, size);
     // LAB 8: Your code here
     env->binary = binary;
+    // LAB 10: Your code here
+    if (type == ENV_TYPE_FS) {
+        env->env_tf.tf_rflags |= FL_IOPL_3;
+    }
+    clear_ipc(env);
+    env->env_sleep_timeout = 0;
 }
 
 
@@ -513,7 +520,7 @@ env_free(struct Env *env) {
     static_assert(MAX_USER_ADDRESS % HUGE_PAGE_SIZE == 0, "Misaligned MAX_USER_ADDRESS");
     release_address_space(&env->address_space);
 #endif
-
+    clear_ipc(env);
     /* Return the environment to the free list */
     env->env_status = ENV_FREE;
     env->env_link = env_free_list;
@@ -626,4 +633,18 @@ env_run(struct Env *env) {
 
     while (1)
         ;
+}
+
+void
+env_process_not_runnable(struct Env* env) {
+    if (env->env_status != ENV_NOT_RUNNABLE)
+        return;
+    
+    if (env->env_ipc_recving || env->env_ipc_sending) // processing ipc timeout
+        process_timed_ipc(env);
+    
+    if (env->env_sleep_timeout && read_tsc() >= env->env_sleep_timeout) { // process sleep timeout
+        env->env_sleep_timeout = 0;
+        env->env_status = ENV_RUNNABLE;
+    }
 }

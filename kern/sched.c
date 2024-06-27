@@ -148,6 +148,19 @@ sched_env_yield(void) {
     if (trace_sched)
         cprintf("Next process for run: [%08X]\n", next_env->env_id);
 
+    // for (int32_t i = 0; i < rt_ind; ++i) {
+    //     next_env++;
+    //     if (next_env == envs + NENV) {
+    //         next_env = envs;
+    //     }
+    //     if (next_env->env_status == ENV_RUNNABLE) {
+    //         break;
+    //     }
+    // }
+
+    if (trace_sched)
+        cprintf("Next process for run: [%08X]\n", next_env->env_id);
+
     if (next_env->env_status == ENV_RUNNABLE) {
         env_run(next_env);
     } else if (next_env->env_status == ENV_RUNNING) {

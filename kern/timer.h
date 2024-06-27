@@ -212,6 +212,8 @@ uint64_t pmtimer_cpu_frequency(void);
 
 uintptr_t make_fs_args(char *ustack_top);
 
+uint64_t get_cpu_freq(const char* timer_name);
+
 #define PM_FREQ 3579545
 
 #endif

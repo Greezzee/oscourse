@@ -35,7 +35,7 @@ fork(void) {
             || sys_env_set_status(envid, ENV_RUNNABLE)) {
         return -1;
     }
-
+    sys_yield();
     return envid;
 }
 

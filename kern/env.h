@@ -20,7 +20,8 @@ void env_create(uint8_t *binary, size_t size, enum EnvType type, enum EnvClass e
 void env_destroy(struct Env *env);
 
 int envid2env(envid_t envid, struct Env **env_store, bool checkperm);
-void env_run(struct Env *e);
+void env_process_not_runnable(struct Env* env);
+_Noreturn void env_run(struct Env *e);
 _Noreturn void env_pop_tf(struct Trapframe *tf);
 
 #ifdef CONFIG_KSPACE
