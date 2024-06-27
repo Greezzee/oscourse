@@ -78,8 +78,8 @@ asan_shadow_allocator(struct UTrapframe *utf) {
 
 
 /* envs and vsyscall page shadow */
-#define SANITIZE_USER_EXTRA_SHADOW_BASE (ROUNDDOWN(MIN(UENVS, UVSYS) >> 3, PAGE_SIZE) + SANITIZE_USER_SHADOW_OFF)
-#define SANITIZE_USER_EXTRA_SHADOW_SIZE (ROUNDUP(MAX(UVSYS + PAGE_SIZE, UENVS + NENV * sizeof(struct Env)) >> 3, PAGE_SIZE) + SANITIZE_USER_SHADOW_OFF - SANITIZE_USER_EXTRA_SHADOW_BASE)
+#define SANITIZE_USER_EXTRA_SHADOW_BASE (ROUNDDOWN(MIN(UENVS, MIN(UVSYS, UTHRS)) >> 3, PAGE_SIZE) + SANITIZE_USER_SHADOW_OFF)
+#define SANITIZE_USER_EXTRA_SHADOW_SIZE (ROUNDUP(MAX(UVSYS + PAGE_SIZE, MAX(UENVS + NENV * sizeof(struct Env), UTHRS + NTHR * sizeof(struct Thr))) >> 3, PAGE_SIZE) + SANITIZE_USER_SHADOW_OFF - SANITIZE_USER_EXTRA_SHADOW_BASE)
 
 /* UVPT is located at another specific address space */
 #define SANITIZE_USER_VPT_SHADOW_BASE (ROUNDDOWN(UVPT >> 3, PAGE_SIZE) + SANITIZE_USER_SHADOW_OFF)
@@ -126,13 +126,16 @@ platform_asan_init(void) {
 
     /* 2. Stacks (USER_EXCEPTION_STACK_TOP, USER_STACK_TOP) */
     // LAB 8: Your code here
-    platform_asan_unpoison((void *)(USER_EXCEPTION_STACK_TOP - USER_EXCEPTION_STACK_SIZE), USER_EXCEPTION_STACK_SIZE);
+    platform_asan_unpoison((void *)(USER_EXCEPTION_STACK_TOP - USER_EXCEPTION_STACK_SIZE * NTHR_PER_ENV), USER_EXCEPTION_STACK_SIZE * NTHR_PER_ENV);
     platform_asan_unpoison((void *)(USER_STACK_TOP - USER_STACK_SIZE * NTHR_PER_ENV), USER_STACK_SIZE * NTHR_PER_ENV);
 
     /* 3. Kernel exposed info (UENVS, UVSYS (only for lab 12)) */
     // LAB 8: Your code here
     platform_asan_unpoison((void *)UENVS, UENVS_SIZE);
     platform_asan_unpoison((void *)UTHRS, UTHRS_SIZE);
+
+    platform_asan_unpoison((void*)0xa00000, PAGE_SIZE);
+    platform_asan_unpoison((void*)0xb00000, PAGE_SIZE);
 
     // TODO NOTE: LAB 12 code may be here
 #if LAB >= 12

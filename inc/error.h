@@ -37,6 +37,9 @@ enum {
     E_NO_FREE_MUTEX = 25,
 
     E_TIMEOUT = 26,
+
+    E_IPC_BAD_RECVER = 27,
+    E_IPC_BAD_SENDER = 28,
     MAXERROR
 };
 

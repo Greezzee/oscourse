@@ -314,6 +314,7 @@ sys_alloc_region(envid_t envid, uintptr_t addr, size_t size, int perm) {
     if (res < 0) {
         return -E_NO_MEM;
     }
+
     return 0;
 }
 
@@ -476,6 +477,7 @@ sys_ipc_try_send(envid_t envid, uint32_t value, uintptr_t srcva, size_t size, in
     if (!env->env_ipc_recving)
         return -E_IPC_NOT_RECV;
 
+    curenv->env_ipc_thr = curthr->thr_id;
     return ipc_send(env, curenv, value, srcva, size, perm);
 }
 
@@ -484,16 +486,19 @@ sys_ipc_try_send_timed(envid_t envid, uint32_t value, uintptr_t srcva, size_t si
 
     if ((srcva < MAX_USER_ADDRESS && PAGE_OFFSET(srcva)) ||
         (srcva < MAX_USER_ADDRESS && perm & ~PROT_ALL) ||
-        (srcva < MAX_USER_ADDRESS && (perm & PROT_W) && user_mem_check(curenv, (void *)srcva, size, PROT_W) < 0))
+        (srcva < MAX_USER_ADDRESS && (perm & PROT_W) && user_mem_check(curenv, (void *)srcva, size, PROT_W) < 0)) {
         return -E_INVAL;
+    }
 
     struct Env *env;
-    if (envid2env(envid, &env, 0))
+    if (envid2env(envid, &env, 0)) {
         return -E_BAD_ENV;
+    }
 
+    curenv->env_ipc_thr = curthr->thr_id;
     if (!env->env_ipc_recving) {
         ipc_prepare_send_timed(envid, value, srcva, size, perm, timeout);
-        curenv->env_tf.tf_regs.reg_rax = 0;
+        curthr->thr_tf.tf_regs.reg_rax = 0;
         sched_yield();
     }
     return ipc_send(env, curenv, value, srcva, size, perm); // recv env is ready to receive, so skipping timeout waiting
@@ -522,6 +527,9 @@ sys_ipc_recv(uintptr_t dstva, uintptr_t maxsize) {
 
     curenv->env_ipc_recving = true;
     curenv->env_status = ENV_NOT_RUNNABLE;
+    curthr->thr_status = THR_NOT_RUNNABLE;
+    curthr->thr_blocking_status = THR_WAITING_IPC;
+    curenv->env_ipc_thr = curthr->thr_id;
     if (dstva < MAX_USER_ADDRESS) {
         curenv->env_ipc_dstva = dstva;
         curenv->env_ipc_maxsz = maxsize;
@@ -553,46 +561,15 @@ sys_ipc_recv_timed(uintptr_t dstva, uintptr_t maxsize, uint64_t timeout) {
 
     curenv->env_ipc_recving = true;
     curenv->env_ipc_timeout = read_tsc() + timeout * get_cpu_freq("hpet0") / 1000;
-
     curenv->env_status = ENV_NOT_RUNNABLE;
+    curthr->thr_status = THR_NOT_RUNNABLE;
+    curthr->thr_blocking_status = THR_WAITING_IPC;
+    curenv->env_ipc_thr = curthr->thr_id;
     if (dstva < MAX_USER_ADDRESS) {
         curenv->env_ipc_dstva = dstva;
         curenv->env_ipc_maxsz = maxsize;
     }
     curthr->thr_tf.tf_regs.reg_rax = 0;
-    sched_yield();
-    return 0;
-}
-
-/* Block until a value is ready.  Record that you want to receive
- * using the env_ipc_recving, env_ipc_maxsz and env_ipc_dstva fields of struct Env,
- * mark yourself not runnable, and then give up the CPU.
- *
- * If 'dstva' is < MAX_USER_ADDRESS, then you are willing to receive a page of data.
- * 'dstva' is the virtual address at which the sent page should be mapped.
- *
- * This function only returns on error, but the system call will eventually
- * return 0 on success.
- * Return < 0 on error.  Errors are:
- *  -E_INVAL if dstva < MAX_USER_ADDRESS but dstva is not page-aligned;
- *  -E_INVAL if dstva is valid and maxsize is 0,
- *  -E_INVAL if maxsize is not page aligned. */
-static int
-sys_ipc_recv_timed(uintptr_t dstva, uintptr_t maxsize, uint64_t timeout) {
-    if (PAGE_OFFSET(maxsize))
-        return -E_INVAL;
-    if (dstva < MAX_USER_ADDRESS && (PAGE_OFFSET(dstva) || maxsize == 0))
-        return -E_INVAL;
-
-    curenv->env_ipc_recving = true;
-    curenv->env_ipc_timeout = read_tsc() + timeout * get_cpu_freq("hpet0") / 1000;
-
-    curenv->env_status = ENV_NOT_RUNNABLE;
-    if (dstva < MAX_USER_ADDRESS) {
-        curenv->env_ipc_dstva = dstva;
-        curenv->env_ipc_maxsz = maxsize;
-    }
-    curenv->env_tf.tf_regs.reg_rax = 0;
     sched_yield();
     return 0;
 }
@@ -666,7 +643,7 @@ static int
 sys_sleep(uint64_t timeout) {
     curenv->env_sleep_timeout = read_tsc() + timeout * get_cpu_freq("hpet0") / 1000;
     curenv->env_status = ENV_NOT_RUNNABLE;
-    curenv->env_tf.tf_regs.reg_rax = 0;
+    curthr->thr_tf.tf_regs.reg_rax = 0;
     sched_yield();
 }
 

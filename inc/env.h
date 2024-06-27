@@ -91,6 +91,7 @@ struct Env {
     envid_t env_ipc_from;    /* envid of the sender */
     envid_t env_ipc_to;      /* envid of the receiver */
     int env_ipc_perm;        /* Perm of page mapping received/sent */
+    thrid_t env_ipc_thr;     /* Thread currently recv\send */
     uint64_t env_ipc_timeout;/* value of tsc when ipc recv/send is timeouted. 0 if there are no timeout */
 
     /* Sleep syscall */

@@ -36,7 +36,7 @@ KERN_SRCFILES := kern/bootstrap.S \
 			kern/uefi.c \
 			kern/uefiasm.S \
 			kern/spinlock.c \
-			kern/ipc.c
+			kern/ipc.c \
 			kern/thread.c \
 			kern/mutex.c \
 

@@ -38,7 +38,8 @@ USERAPPS :=		$(OBJDIR)/user/init \
 			$(OBJDIR)/user/itask_threads \
 			$(OBJDIR)/user/itask_mutex \
 			$(OBJDIR)/user/itask_sleep \
-			$(OBJDIR)/user/itask_ipc_timed
+			$(OBJDIR)/user/itask_ipc_timed \
+			$(OBJDIR)/user/sendpage \
 
 
 FSIMGFILES := $(FSIMGTXTFILES) $(USERAPPS)

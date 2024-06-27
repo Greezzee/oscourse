@@ -65,7 +65,7 @@ void test_ipc_recv_from_timed(uint64_t send_timeout, uint64_t send_sleep, uint64
         int to_send = 42;
         sys_sleep(send_sleep);
         int res = ipc_send_timed(who, to_send, NULL, 0, 0, send_timeout);
-        if (res)
+        if (res < 0)
             cprintf("Error in ipc_send_timed: %i\n", res);
         wait(who);
         return;
@@ -92,7 +92,7 @@ void timed_pong(uint64_t send_timeout, uint64_t recv_timeout) {
             sys_sleep(i * 10);
             cprintf("[%d] %x sent %d to %x\n", i, sys_getenvid(), to_send, who);
             int res = ipc_send_timed(who, to_send, NULL, 0, 0, send_timeout);
-            if (res) {
+            if (res < 0) {
                 cprintf("[%d] %x: Error in ipc_send_timed: %i\n", i, sys_getenvid(), res);
                 wait(who);
                 return;
@@ -126,7 +126,7 @@ void timed_pong(uint64_t send_timeout, uint64_t recv_timeout) {
         cprintf("%x sent %d to %x\n", sys_getenvid(), res, who);
         res++;
         res = ipc_send_timed(who, res, NULL, 0, 0, send_timeout);
-        if (res) {
+        if (res < 0) {
             cprintf("[%d] %x: Error in ipc_send_timed: %i\n", i, sys_getenvid(), res);
             sys_env_destroy(0);
         }
@@ -158,10 +158,10 @@ void test_ipc_timed_region(uint64_t send_timeout, uint64_t recv_timeout, uint64_
     }
     sys_sleep(send_sleep);
     /* Parent */
-    sys_alloc_region(thisenv->env_id, TEMP_ADDR, PAGE_SIZE, PROT_RW);
+    int res = sys_alloc_region(thisenv->env_id, TEMP_ADDR, PAGE_SIZE, PROT_RW);
     memcpy(TEMP_ADDR, str1, strlen(str1) + 1);
-    int res = ipc_send_timed(who, 0, TEMP_ADDR, PAGE_SIZE, PROT_RW, send_timeout);
-    if (res)
+    res = ipc_send_timed(who, 0, TEMP_ADDR, PAGE_SIZE, PROT_RW, send_timeout);
+    if (res < 0)
         cprintf("%x: Error in ipc_send_timed: %i\n", sys_getenvid(), res);
     wait(who);
     return;
@@ -170,9 +170,9 @@ void test_ipc_timed_region(uint64_t send_timeout, uint64_t recv_timeout, uint64_
 void
 umain(int argc, char **argv) {
     cprintf("Test recv after send:\n");
-    test_ipc_timed(2000, 2000, 0, 1000);
+    test_ipc_timed(2000, 2000, 200, 1000);
     cprintf("\nTest send after recv:\n");
-    test_ipc_timed(2000, 2000, 1000, 0);
+    test_ipc_timed(2000, 2000, 1000, 200);
 
     cprintf("\nTest recv timeout:\n");
     test_ipc_timed(1000, 1000, 2000, 0);
@@ -180,9 +180,9 @@ umain(int argc, char **argv) {
     test_ipc_timed(1000, 1000, 0, 2000);
 
     cprintf("\nTest recv region after send:\n");
-    test_ipc_timed_region(2000, 2000, 0, 1000);
+    test_ipc_timed_region(2000, 2000, 200, 1000);
     cprintf("\nTest send region after recv:\n");
-    test_ipc_timed_region(2000, 2000, 1000, 0);
+    test_ipc_timed_region(2000, 2000, 1000, 200);
 
     cprintf("\nTest recv region timeout:\n");
     test_ipc_timed_region(1000, 1000, 2000, 0);
@@ -202,7 +202,7 @@ umain(int argc, char **argv) {
     cprintf("\nTest send to timed:\n");
     test_ipc_send_to_timed(1000, 500, 0);
     cprintf("\nTest recv from timed:\n");
-    test_ipc_recv_from_timed(1000, 0, 500);
+    test_ipc_recv_from_timed(1000, 200, 500);
 
     cprintf("\nPong time!!\n");
     timed_pong(200, 200);

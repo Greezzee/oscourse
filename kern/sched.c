@@ -115,6 +115,9 @@ sched_env_yield(void) {
         next_env = &envs[run_time_indices[i]];
         if (trace_sched)
             cprintf("considering process with id = [%08X]...\n", next_env->env_id);
+        if (next_env->env_status == ENV_NOT_RUNNABLE) {
+            env_process_not_runnable(next_env);
+        }
         if (next_env->env_status == ENV_RUNNABLE || next_env->env_status == ENV_RUNNING) {
             has_rt_process_for_run = 1;
             break;
@@ -129,24 +132,14 @@ sched_env_yield(void) {
             if (next_env == envs + NENV) {
                 next_env = envs;
             }
+            if (next_env->env_status == ENV_NOT_RUNNABLE && next_env->env_class == ENV_CLASS_USUAL) {
+                env_process_not_runnable(next_env);
+            }
             if (next_env->env_class == ENV_CLASS_USUAL && next_env->env_status == ENV_RUNNABLE) {
                 break;
             }
         }
     }
-
-    // for (int32_t i = 0; i < rt_ind; ++i) {
-    //     next_env++;
-    //     if (next_env == envs + NENV) {
-    //         next_env = envs;
-    //     }
-    //     if (next_env->env_status == ENV_RUNNABLE) {
-    //         break;
-    //     }
-    // }
-
-    if (trace_sched)
-        cprintf("Next process for run: [%08X]\n", next_env->env_id);
 
     // for (int32_t i = 0; i < rt_ind; ++i) {
     //     next_env++;

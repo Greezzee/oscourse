@@ -166,7 +166,7 @@
 #define USER_EXCEPTION_STACK_SIZE (8 * PAGE_SIZE)
 /* Top of normal user stack */
 /* Next page left invalid to guard against exception stack overflow; then: */
-#define USER_STACK_TOP (USER_EXCEPTION_STACK_TOP - USER_EXCEPTION_STACK_SIZE - PAGE_SIZE)
+#define USER_STACK_TOP (USER_EXCEPTION_STACK_TOP - USER_EXCEPTION_STACK_SIZE * 1024 - PAGE_SIZE)
 /* Stack size (variable) */
 #define USER_STACK_SIZE (16 * PAGE_SIZE)
 /* Max number of open files in the file system at once */

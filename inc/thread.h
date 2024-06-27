@@ -31,6 +31,7 @@ enum {
     THR_NOT_WAITING,
     THR_WAITING_JOIN,
     THR_WAITING_MUTEX,
+    THR_WAITING_IPC,
 };
 
 struct Thr {

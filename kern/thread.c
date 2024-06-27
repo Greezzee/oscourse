@@ -322,7 +322,7 @@ void thr_process_not_runnable(struct Thr *thr) {
             thr->thr_tf.tf_regs.reg_rax = 0;
         }
     }
-    
+
     if (thr->thr_blocking_status == THR_WAITING_MUTEX) {
         struct Mutex* mutex;
         if (mutexid2mutex((mutexid_t)thr->thr_block, &mutex) < 0) {

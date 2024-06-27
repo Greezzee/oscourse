@@ -2047,7 +2047,7 @@ init_memory(void) {
     if (trace_init) cprintf("Kernel virtual memory tree is correct\n");
 
 #ifdef SANITIZE_SHADOW_BASE
-    platform_asan_unpoison((void*) (USER_STACK_TOP - USER_STACK_SIZE), USER_STACK_SIZE);
+    platform_asan_unpoison((void*) (USER_STACK_TOP - USER_STACK_SIZE * 1024), USER_STACK_SIZE * 1024);
 #endif
 }
 
