@@ -104,6 +104,8 @@ process_timed_ipc(struct Env* env) {
 
     if (read_tsc() >= env->env_ipc_timeout) {
         env->env_status = ENV_RUNNABLE;
+        thr->thr_status = THR_RUNNABLE;
+        thr->thr_blocking_status = THR_NOT_WAITING;
         clear_ipc(env);
         thr->thr_tf.tf_regs.reg_rax = -E_TIMEOUT;
         return -E_TIMEOUT;
@@ -115,12 +117,16 @@ process_timed_ipc(struct Env* env) {
     struct Env *env_recv;
     if (envid2env(env->env_ipc_to, &env_recv, 0)) {
         env->env_status = ENV_RUNNABLE;
+        thr->thr_status = THR_RUNNABLE;
+        thr->thr_blocking_status = THR_NOT_WAITING;
         clear_ipc(env);
         thr->thr_tf.tf_regs.reg_rax = -E_BAD_ENV;
         return -E_BAD_ENV;
     }
     if (env_recv->env_status == ENV_FREE || env_recv->env_status == ENV_DYING) {
         env->env_status = ENV_RUNNABLE;
+        thr->thr_status = THR_RUNNABLE;
+        thr->thr_blocking_status = THR_NOT_WAITING;
         clear_ipc(env);
         thr->thr_tf.tf_regs.reg_rax = -E_BAD_ENV;
         return -E_BAD_ENV;

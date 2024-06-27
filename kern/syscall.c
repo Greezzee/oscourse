@@ -30,11 +30,11 @@ sys_cputs(const char *s, size_t len) {
      * Destroy the environment if not. */
     user_mem_assert(curenv, s, len, PROT_R | PROT_USER_);
 
-    #ifdef SANITIZE_SHADOW_BASE
+    #ifdef SANITIZE_USER_SHADOW_BASE
     platform_asan_unpoison((void *)s, len + 1);
     #endif
     cprintf("%.*s", (int)len, s);
-    #ifdef SANITIZE_SHADOW_BASE
+    #ifdef SANITIZE_USER_SHADOW_BASE
     platform_asan_poison((void *)s, len + 1);
     #endif
 
