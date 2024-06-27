@@ -42,7 +42,7 @@
 // #define trace_envs_more 0
 // #endif
 
-#define trace_envs_more 1
+#define trace_envs_more 0
 
 #ifndef trace_spinlock
 #define trace_spinlock 0
@@ -54,6 +54,10 @@
 
 #ifndef trace_thread
 #define trace_thread 0
+#endif
+
+#ifndef trace_sched
+#define trace_sched 0
 #endif
 
 #endif

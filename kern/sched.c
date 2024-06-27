@@ -3,6 +3,7 @@
 #include <kern/env.h>
 #include <kern/thread.h>
 #include <kern/monitor.h>
+#include <kern/traceopt.h>
 
 
 struct Taskstate cpu_ts;
@@ -35,7 +36,7 @@ void insertion_sort(int32_t n, int32_t ind_arr[], struct Env *envs)
 
 /* Choose a user environment to run and run it */
 _Noreturn void
-sched_yield(void) {
+sched_env_yield(void) {
     /* Implement simple round-robin scheduling.
      *
      * Search through 'envs' for an ENV_RUNNABLE environment in
@@ -50,7 +51,8 @@ sched_yield(void) {
      * simply drop through to the code
      * below to halt the cpu */
 
-    cprintf("\n\n\n-------------scheduler-iteration--------------\n");
+    if (trace_sched)
+        cprintf("\n\n\n-------------scheduler-iteration--------------\n");
 
     // if (curthr && curthr->thr_next && curthr->thr_next->thr_status == THR_RUNNABLE) {
     //     thr_run(curthr->thr_next);
@@ -88,19 +90,22 @@ sched_yield(void) {
         }
     }
 
-    cprintf("Run_time_indices before sort:\n");
-    for (int32_t i = 0; i < rt_ind; ++i) {
-        cprintf("%d\n", run_time_indices[i]);
+    if (trace_sched) {
+        cprintf("Run_time_indices before sort:\n");
+        for (int32_t i = 0; i < rt_ind; ++i) {
+            cprintf("%d\n", run_time_indices[i]);
+        }
     }
 
     insertion_sort(rt_ind, run_time_indices, envs);
     
-    cprintf("Run_time_indices after sort:\n");
-    for (int32_t i = 0; i < rt_ind; ++i) {
-        cprintf("ind = %d and id = [%08X] with metric = %ld and left_max_job_time = %lu\n", run_time_indices[i], envs[run_time_indices[i]].env_id, get_sheduler_metric(&envs[run_time_indices[i]]), envs[run_time_indices[i]].left_max_job_time);
+    if (trace_sched) {
+        cprintf("Run_time_indices after sort:\n");
+        for (int32_t i = 0; i < rt_ind; ++i) {
+            cprintf("ind = %d and id = [%08X] with metric = %ld and left_max_job_time = %lu\n", run_time_indices[i], envs[run_time_indices[i]].env_id, get_sheduler_metric(&envs[run_time_indices[i]]), envs[run_time_indices[i]].left_max_job_time);
+        }
+        cprintf("tsc = %ld\n", read_tsc());
     }
-
-    cprintf("tsc = %ld\n", read_tsc());
 
     struct Env *next_env = envs;
 
@@ -108,7 +113,8 @@ sched_yield(void) {
 
     for (int32_t i = 0; i < rt_ind; ++i) {
         next_env = &envs[run_time_indices[i]];
-        cprintf("considering process with id = [%08X]...\n", next_env->env_id);
+        if (trace_sched)
+            cprintf("considering process with id = [%08X]...\n", next_env->env_id);
         if (next_env->env_status == ENV_RUNNABLE || next_env->env_status == ENV_RUNNING) {
             has_rt_process_for_run = 1;
             break;
@@ -139,7 +145,8 @@ sched_yield(void) {
     //     }
     // }
 
-    cprintf("Next process for run: [%08X]\n", next_env->env_id);
+    if (trace_sched)
+        cprintf("Next process for run: [%08X]\n", next_env->env_id);
 
     if (next_env->env_status == ENV_RUNNABLE) {
         env_run(next_env);
@@ -148,6 +155,40 @@ sched_yield(void) {
         env_run(next_env);
     }
 
+    cprintf("Halt\n");
+
+    /* No runnable environments,
+     * so just halt the cpu */
+    sched_halt();
+}
+
+_Noreturn void
+sched_yield(void) {
+    if (!curenv || !curthr)
+        sched_env_yield();
+    
+    if (curenv->env_status != ENV_RUNNING)
+        sched_env_yield();
+
+    struct Thr* possible_next_thr = curthr->thr_next;
+    
+    if (!possible_next_thr)
+        thrid2thr(curenv->env_thr_head, &possible_next_thr);
+
+    while (possible_next_thr != curthr) {     
+        if (possible_next_thr->thr_status == THR_NOT_RUNNABLE)
+            thr_process_not_runnable(possible_next_thr);
+
+        if (possible_next_thr->thr_status == THR_RUNNABLE)
+            thr_run(possible_next_thr);
+        
+        possible_next_thr = possible_next_thr->thr_next;
+
+        if (!possible_next_thr)
+            thrid2thr(curenv->env_thr_head, &possible_next_thr);
+    }
+
+    sched_env_yield();
     cprintf("Halt\n");
 
     /* No runnable environments,

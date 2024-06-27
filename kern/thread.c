@@ -132,8 +132,9 @@ int thr_create(envid_t envid, uint32_t force_thr_env_id, struct Thr** created_th
         if (force_thr_env_id >= NTHR_PER_ENV)
             force_thr_env_id = 0;
         int res = thr_alloc(&new_thr, env, force_thr_env_id);
-        if (res < 0)
+        if (res < 0) {
             return res;
+        }
         env->env_thr_head = new_thr->thr_id;
         env->env_thr_count++;
         new_thr->thr_env = env->env_id;

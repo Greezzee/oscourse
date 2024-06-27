@@ -84,10 +84,6 @@ KERN_BINFILES :=	user/hello \
 			user/breakpoint \
 			user/softint \
 			user/badsegment \
-			user/faultread \
-			user/faultreadkernel \
-			user/faultwrite \
-			user/faultwritekernel \
 			user/idle \
 			user/yield \
 			user/dumbfork \

@@ -615,7 +615,7 @@ env_run(struct Env *env) {
         switch_address_space(&curenv->address_space);
         
     struct Thr* cur_thr;
-    int res = thrid2thr(curenv->env_thr_head, &cur_thr);
+    int res = thrid2thr(curenv->env_thr_cur, &cur_thr);
     if (res < 0)
         panic("Running bad thr\n");
     thr_run(cur_thr);

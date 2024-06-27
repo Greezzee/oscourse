@@ -11,6 +11,8 @@
 #include <kern/console.h>
 #include <kern/pmap.h>
 #include <kern/env.h>
+#include <kern/thread.h>
+#include <kern/mutex.h>
 #include <kern/timer.h>
 #include <kern/trap.h>
 #include <kern/sched.h>
@@ -154,6 +156,8 @@ i386_init(void) {
     if (trace_init) cprintf("Framebuffer initialised\n");
     trap_init();
     /* User environment initialization functions */
+    mutex_init();
+    thr_init();
     env_init();
     /* Choose the timer used for scheduling: hpet or pit */
     timers_schedule("hpet0");
@@ -178,8 +182,9 @@ i386_init(void) {
     ENV_CREATE(TEST, ENV_TYPE_USER);
 #else
     /* Touch all you want. */
-    ENV_CREATE_DIFF_CLASS(user_icode, ENV_TYPE_USER, ENV_CLASS_REAL_TIME, 1e10, 5 * 1e9, 1e9, (void*)deadline_exceed_handler);
-    ENV_CREATE_DIFF_CLASS(user_icode, ENV_TYPE_USER, ENV_CLASS_REAL_TIME, 1e10, 1e9, 4 * 1e8, (void*)deadline_exceed_handler);
+    ENV_CREATE(user_icode, ENV_TYPE_USER);
+    //ENV_CREATE_DIFF_CLASS(user_icode, ENV_TYPE_USER, ENV_CLASS_REAL_TIME, 1e10, 5 * 1e9, 1e9, (void*)deadline_exceed_handler);
+    //ENV_CREATE_DIFF_CLASS(user_icode, ENV_TYPE_USER, ENV_CLASS_REAL_TIME, 1e10, 1e9, 4 * 1e8, (void*)deadline_exceed_handler);
 #endif /* TEST* */
 #endif
 
