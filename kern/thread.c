@@ -1,3 +1,4 @@
+#include "thread.h"
 #include <inc/x86.h>
 #include <inc/mmu.h>
 #include <inc/error.h>
@@ -121,7 +122,7 @@ void thr_free(struct Thr *thr) {
     env->env_thr_count--;
 }
 
-int thr_create(envid_t envid, uint32_t force_thr_env_id, struct Thr** created_thr) {
+int thr_create_with_priority(envid_t envid, uint32_t force_thr_env_id, struct Thr** created_thr, uint32_t fixed_priority) {
     struct Env* env;
     int res = envid2env(envid, &env, 0);
     if (res < 0)
@@ -139,6 +140,7 @@ int thr_create(envid_t envid, uint32_t force_thr_env_id, struct Thr** created_th
         env->env_thr_count++;
         new_thr->thr_env = env->env_id;
         new_thr->thr_next = NULL;
+        new_thr->fixed_priority = fixed_priority; 
         if (created_thr)
             *created_thr = new_thr;
         if (trace_thread) {
@@ -188,6 +190,10 @@ int thr_create(envid_t envid, uint32_t force_thr_env_id, struct Thr** created_th
         cprintf("New thread's stack is at %016llx to %016lx\n", new_thr->thr_tf.tf_rsp - USER_STACK_SIZE, new_thr->thr_tf.tf_rsp);
     }
     return 0;
+}
+
+int thr_create(envid_t envid, uint32_t force_thr_env_id, struct Thr** created_thr) {
+    return thr_create_with_priority(envid, force_thr_env_id, created_thr, DEFAULT_PRIORITY);
 }
 
 int thr_destroy(thrid_t thrid) {

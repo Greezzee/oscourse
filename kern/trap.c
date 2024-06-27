@@ -540,7 +540,7 @@ page_fault_handler(struct Trapframe *tf) {
     /* Rerun current environment */
     // LAB 9: Your code here:
 
-    env_run(curenv);
+    env_run(curenv, NULL);
 
     while (1)
         ;
