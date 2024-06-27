@@ -171,11 +171,8 @@ sys_thr_join(thrid_t thr_id) {
     struct Thr* thr;
     int res = thrid2thr(thr_id, &thr);
     if (res < 0) {
-        cprintf("Skipping waiting\n");
         return 0; // thr not found or free - anyway go further, don't wait anyone
     }
-
-    cprintf("Waiting\n");
     curthr->thr_status = THR_NOT_RUNNABLE;
     curthr->thr_blocking_status = THR_WAITING_JOIN;
     curthr->thr_block = thr_id;
@@ -201,12 +198,13 @@ sys_mutex_destroy(mutexid_t mutexid) {
 static int
 sys_mutex_block_thr(mutexid_t mutexid, thrid_t owner_thr) {
     int res = mutex_lock(mutexid, owner_thr);
-    if (res < 0)
+    if (res < 0) {
+        cprintf("Mutex error %i\n", res);
         return res;
+    }
     curthr->thr_blocking_status = THR_WAITING_MUTEX;
     curthr->thr_block = (int64_t)mutexid;
     curthr->thr_status = THR_NOT_RUNNABLE;
-
     sched_yield();
     return 0;
 }

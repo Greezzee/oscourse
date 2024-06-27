@@ -115,6 +115,7 @@ KERN_BINFILES :=	user/hello \
 			user/monitor \
 			user/filldisk \
 			user/itask_threads \
+			user/itask_mutex \
 			
 KERN_BINFILES := $(patsubst %, $(OBJDIR)/%, $(KERN_BINFILES))
 endif

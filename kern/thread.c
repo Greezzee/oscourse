@@ -11,6 +11,7 @@
 #include <kern/env.h>
 #include <kern/thread.h>
 #include <kern/sched.h>
+#include <kern/mutex.h>
 
 struct Thr *thrs = NULL;
 struct Thr *curthr = NULL;
@@ -317,7 +318,19 @@ void thr_process_not_runnable(struct Thr *thr) {
     if (thr->thr_blocking_status == THR_WAITING_JOIN) {
         struct Thr* waited_thr;
         if (thrid2thr(thr->thr_block, &waited_thr) < 0) {
-            cprintf("Making unrannable runnable\n");
+            thr->thr_status = THR_RUNNABLE;
+            thr->thr_tf.tf_regs.reg_rax = 0;
+        }
+    }
+    
+    if (thr->thr_blocking_status == THR_WAITING_MUTEX) {
+        struct Mutex* mutex;
+        if (mutexid2mutex((mutexid_t)thr->thr_block, &mutex) < 0) {
+            thr_destroy(thr->thr_id);
+            return;
+        }
+
+        if (!mutex->mutex_is_locked) {
             thr->thr_status = THR_RUNNABLE;
             thr->thr_tf.tf_regs.reg_rax = 0;
         }
