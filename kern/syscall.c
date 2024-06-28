@@ -99,7 +99,7 @@ sys_yield(void) {
 
 static void
 sys_periodic_wait(void) {
-    curenv->env_status = ENV_NOT_RUNNABLE;
+    curenv->env_status = ENV_PERIODIC_WAITING;
     sched_yield();
 }
 

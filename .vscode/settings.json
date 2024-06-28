@@ -24,6 +24,7 @@
         "sched.h": "c",
         "random": "c",
         "stdatomic.h": "c",
-        "complex": "c"
+        "complex": "c",
+        "stdio.h": "c"
     }
 }

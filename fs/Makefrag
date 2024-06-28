@@ -41,6 +41,7 @@ USERAPPS :=		$(OBJDIR)/user/init \
 			$(OBJDIR)/user/itask_ipc_timed \
 			$(OBJDIR)/user/sendpage \
 			$(OBJDIR)/user/simple_change_class_test \
+			$(OBJDIR)/user/itask_rt \
 
 FSIMGFILES := $(FSIMGTXTFILES) $(USERAPPS)
 

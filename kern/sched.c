@@ -78,7 +78,7 @@ sched_thr_yield(struct Env* env) {
         return NULL;
     }
     else {
-        //if (trace_sched)
+        if (trace_sched)
         cprintf("Processing real-time process in sched_thr_yield...\n");
 
         struct Thr* possible_next_thr = NULL;
@@ -238,23 +238,18 @@ sched_env_yield(void) {
                     thrid2thr(envs[i].env_thr_head, &head_thr);
                     if (head_thr)
                         exceed_deadline_handler(&head_thr->thr_tf);
-                    //envs[i].env_deadline_exceed_handler();
                     break;
                 }
 
                 //  if the real-time process starts a new iteration
                 if ((envs[i].last_period_start_moment == 0 || read_tsc() - envs[i].last_period_start_moment > envs[i].period) &&
                      envs[i].env_status == ENV_PERIODIC_WAITING) {
-                        
-                    envs[i].last_period_start_moment += envs[i].period;
+                    envs[i].last_period_start_moment = read_tsc();
                     envs[i].left_max_job_time = envs[i].max_job_time;
                     envs[i].env_status = ENV_RUNNABLE;
                 }
                 
-                if (envs[i].left_max_job_time == 0);
-                else
-                    run_time_indices[rt_ind++] = i;
-                break;
+                run_time_indices[rt_ind++] = i;
 
             case ENV_CLASS_USUAL:
                 break;
