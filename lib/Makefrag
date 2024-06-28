@@ -9,7 +9,8 @@ LIB_SRCFILES :=		lib/console.c \
 			lib/string.c \
 			lib/readline.c \
 			lib/syscall.c \
-			lib/thread.c
+			lib/thread.c \
+			lib/deadline.c
 
 ifeq ($(CONFIG_KSPACE),y)
 LIB_SRCFILES +=		lib/random.c \

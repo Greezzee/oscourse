@@ -36,6 +36,7 @@ enum {
     ENV_RUNNABLE,
     ENV_RUNNING,
     ENV_NOT_RUNNABLE,
+    ENV_PERIODIC_WAITING,
 };
 
 /* Special environment types */
@@ -95,7 +96,6 @@ struct Env {
     uint64_t deadline;
     uint64_t max_job_time;
     uint64_t left_max_job_time;  /* shows how mush time process should work at this iteration of scheduling */
-    void (*env_deadline_exceed_handler)(void);
     void *exceed_deadline_upcall;
 
     uint64_t last_launch_time;  /* last moment when the process starts to work */

@@ -56,6 +56,11 @@ void remove_pgfault_handler(pf_handler_t handler);
 /* readline.c */
 char *readline(const char *buf);
 
+/* deadline.c */
+typedef bool(dl_handler_t)(void);
+int add_deadline_handler(dl_handler_t handler);
+void remove_deadline_handler(dl_handler_t handler);
+
 /* syscall.c */
 #define CURENVID 0
 #define CURTHRID 0

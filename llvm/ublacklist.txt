@@ -13,4 +13,5 @@ src:lib/uvpt.c
 fun:sys_alloc_region
 fun:sys_env_set_pgfault_upcall
 fun:_handle_vectored_pagefault
+fun:_handle_deadline_exeeded
 fun:add_pgfault_handler

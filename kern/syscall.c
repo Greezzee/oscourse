@@ -16,6 +16,7 @@
 #include <kern/traceopt.h>
 #include <kern/monitor.h>
 #include <kern/mutex.h>
+#include <kern/tsc.h>
 
 /* Print a string to the system console.
  * The string is exactly 'len' characters long.
@@ -281,10 +282,17 @@ sys_env_change_class(envid_t envid, enum EnvClass new_env_class, uint64_t period
         return -E_BAD_ENV;
     }
 
+    env->last_period_start_moment = 0;
     env->env_class = new_env_class;
-    env->period = period;
-    env->deadline = deadline;
-    env->max_job_time = max_job_time;
+    env->period = period * timer_cpu_frequency("hpet0") / 1000;
+    env->deadline = deadline * timer_cpu_frequency("hpet0") / 1000;
+    env->max_job_time = max_job_time * timer_cpu_frequency("hpet0") / 1000;
+    if (new_env_class == ENV_CLASS_REAL_TIME)
+        env->env_status = ENV_PERIODIC_WAITING;
+    if (curenv->env_id == envid) {
+        curthr->thr_tf.tf_regs.reg_rax = 0;
+        sched_yield();
+    }
     return 0;
 }
 

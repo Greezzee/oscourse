@@ -181,7 +181,7 @@ exceed_deadline_handler(struct Trapframe *tf) {
     utf.utf_rflags = tf->tf_rflags;
     utf.utf_rsp = tf->tf_rsp;
     tf->tf_rsp = ursp;
-    tf->tf_rip = (uintptr_t)curenv->env_pgfault_upcall;
+    tf->tf_rip = (uintptr_t)curenv->exceed_deadline_upcall;
 
     /* And then copy it userspace (nosan_memcpy()) */
     // LAB 9: Your code here:
@@ -232,7 +232,7 @@ sched_env_yield(void) {
         switch (envs[i].env_class) {
             case ENV_CLASS_REAL_TIME:
                 //  if the process reached the deadline and didn't finish
-                if (read_tsc() - envs[i].last_period_start_moment > envs[i].deadline) {
+                if (read_tsc() - envs[i].last_period_start_moment > envs[i].deadline && envs[i].env_status != ENV_PERIODIC_WAITING) {
                     //  Drop him to the usual state
                     envs[i].env_class = ENV_CLASS_USUAL;
                     struct Thr* head_thr = NULL;
@@ -244,14 +244,13 @@ sched_env_yield(void) {
                 }
 
                 //  if the real-time process starts a new iteration
-                if (read_tsc() - envs[i].last_period_start_moment > envs[i].period) {
+                if (read_tsc() - envs[i].last_period_start_moment > envs[i].period && envs[i].env_status == ENV_PERIODIC_WAITING) {
                     envs[i].last_period_start_moment += envs[i].period;
                     envs[i].left_max_job_time = envs[i].max_job_time;
                     envs[i].env_status = ENV_RUNNABLE;
                 }
                 
-                if (envs[i].left_max_job_time == 0)
-                    envs[i].env_status = ENV_NOT_RUNNABLE;
+                if (envs[i].left_max_job_time == 0);
                 else
                     run_time_indices[rt_ind++] = i;
                 break;
