@@ -243,7 +243,9 @@ sched_env_yield(void) {
                 }
 
                 //  if the real-time process starts a new iteration
-                if (read_tsc() - envs[i].last_period_start_moment > envs[i].period && envs[i].env_status == ENV_PERIODIC_WAITING) {
+                if ((envs[i].last_period_start_moment == 0 || read_tsc() - envs[i].last_period_start_moment > envs[i].period) &&
+                     envs[i].env_status == ENV_PERIODIC_WAITING) {
+                        
                     envs[i].last_period_start_moment += envs[i].period;
                     envs[i].left_max_job_time = envs[i].max_job_time;
                     envs[i].env_status = ENV_RUNNABLE;
