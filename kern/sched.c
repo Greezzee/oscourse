@@ -106,55 +106,24 @@ sched_thr_yield(struct Env* env) {
 }
 
 static void
-exceed_deadline_handler(struct Trapframe *tf) {
+exceed_deadline_handler(struct Env* env, struct Thr* thr) {
     uintptr_t cr2 = rcr2();
-
-    /* We've already handled kernel-mode exceptions, so if we get here,
-     * the page fault happened in user mode.
-     *
-     * Call the environment's page fault upcall, if one exists.  Set up a
-     * page fault stack frame on the user exception stack (below
-     * USER_EXCEPTION_STACK_TOP), then branch to curenv->env_pgfault_upcall.
-     *
-     * The page fault upcall might cause another page fault, in which case
-     * we branch to the page fault upcall recursively, pushing another
-     * page fault stack frame on top of the user exception stack.
-     *
-     * The trap handler needs one word of scratch space at the top of the
-     * trap-time stack in order to return.  In the non-recursive case, we
-     * don't have to worry about this because the top of the regular user
-     * stack is free.  In the recursive case, this means we have to leave
-     * an extra word between the current top of the exception stack and
-     * the new stack frame because the exception stack _is_ the trap-time
-     * stack.
-     *
-     * If there's no page fault upcall, the environment didn't allocate a
-     * page for its exception stack or can't write to it, or the exception
-     * stack overflows, then destroy the environment that caused the fault.
-     * Note that the grade script assumes you will first check for the page
-     * fault upcall and print the "user fault va" message below if there is
-     * none.  The remaining three checks can be combined into a single test.
-     *
-     * Hints:
-     *   user_mem_assert() and env_run() are useful here.
-     *   To change what the user environment runs, modify 'curenv->env_tf'
-     *   (the 'tf' variable points at 'curenv->env_tf'). */
-
+    struct Trapframe *tf = &thr->thr_tf;
 
     static_assert(UTRAP_RIP == offsetof(struct UTrapframe, utf_rip), "UTRAP_RIP should be equal to RIP offset");
     static_assert(UTRAP_RSP == offsetof(struct UTrapframe, utf_rsp), "UTRAP_RSP should be equal to RSP offset");
 
-    if (!curenv->exceed_deadline_upcall) {
+    if (!env->exceed_deadline_upcall) {
         return; //  do nothing, this is not neccesary to have a handler
     }
     /* Force allocation of exception stack page to prevent memcpy from
      * causing pagefault during another pagefault */
     // LAB 9: Your code here:
 
-    uint32_t thr_low_id = THR_ENVX(curthr->thr_id);
+    uint32_t thr_low_id = THR_ENVX(thr->thr_id);
     uintptr_t user_exception_stack_top_cur_thread = USER_EXCEPTION_STACK_TOP - thr_low_id * PAGE_SIZE;
 
-    force_alloc_page(&curenv->address_space, user_exception_stack_top_cur_thread - PAGE_SIZE, PAGE_SIZE);
+    force_alloc_page(&env->address_space, user_exception_stack_top_cur_thread - PAGE_SIZE, PAGE_SIZE);
 
     /* Assert existance of exception stack */
     // LAB 9: Your code here:
@@ -167,7 +136,7 @@ exceed_deadline_handler(struct Trapframe *tf) {
     }
 
     ursp -= sizeof(struct UTrapframe);
-    user_mem_assert(curenv, (void *)ursp, sizeof(struct UTrapframe), PROT_W);
+    user_mem_assert(env, (void *)ursp, sizeof(struct UTrapframe), PROT_W);
 
     /* Build local copy of UTrapframe */
     // LAB 9: Your code here:
@@ -180,12 +149,12 @@ exceed_deadline_handler(struct Trapframe *tf) {
     utf.utf_rflags = tf->tf_rflags;
     utf.utf_rsp = tf->tf_rsp;
     tf->tf_rsp = ursp;
-    tf->tf_rip = (uintptr_t)curenv->exceed_deadline_upcall;
+    tf->tf_rip = (uintptr_t)env->exceed_deadline_upcall;
 
     /* And then copy it userspace (nosan_memcpy()) */
     // LAB 9: Your code here:
 
-    struct AddressSpace *old = switch_address_space(&curenv->address_space);
+    struct AddressSpace *old = switch_address_space(&env->address_space);
     set_wp(0);
     nosan_memcpy((void *)ursp, (void *)&utf, sizeof(struct UTrapframe));
     set_wp(1);
@@ -194,7 +163,7 @@ exceed_deadline_handler(struct Trapframe *tf) {
     /* Rerun current environment */
     // LAB 9: Your code here:
 
-    env_run(curenv, NULL);
+    env_run(env, NULL);
 
     while (1)
         ;
@@ -237,7 +206,7 @@ sched_env_yield(void) {
                     struct Thr* head_thr = NULL;
                     thrid2thr(envs[i].env_thr_head, &head_thr);
                     if (head_thr)
-                        exceed_deadline_handler(&head_thr->thr_tf);
+                        exceed_deadline_handler(&envs[i], head_thr);
                     break;
                 }
 

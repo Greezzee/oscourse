@@ -120,6 +120,7 @@ KERN_BINFILES :=	user/hello \
 			user/itask_sleep \
 			user/itask_ipc_timed \
 			user/itask_rt \
+			user/itask_rt_deadline \
 #			user/faultdie \
 			user/faultregs \
 			user/faultalloc \

@@ -99,8 +99,10 @@ sys_yield(void) {
 
 static void
 sys_periodic_wait(void) {
-    curenv->env_status = ENV_PERIODIC_WAITING;
-    sched_yield();
+    if (curenv->env_class == ENV_CLASS_REAL_TIME) {
+        curenv->env_status = ENV_PERIODIC_WAITING;
+        sched_yield();
+    }
 }
 
 /* Allocate a new environment.
@@ -280,7 +282,6 @@ sys_env_set_exceed_deadline_upcall(envid_t envid, void* func) {
     if (envid2env(envid, &env, 1) < 0) {
         return -E_BAD_ENV;
     }
-
     env->exceed_deadline_upcall = func;
     return 0;
 }

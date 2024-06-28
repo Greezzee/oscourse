@@ -36,7 +36,7 @@ add_deadline_handler(dl_handler_t handler) {
         sys_alloc_region(sys_getenvid(), (void*)(USER_EXCEPTION_STACK_TOP - PAGE_SIZE * NTHR_PER_ENV), PAGE_SIZE * NTHR_PER_ENV, PROT_RW);
         _dlhandler_vec[_dlhandler_off++] = handler;
         _dlhandler_inititiallized = 1;
-        res = sys_env_set_pgfault_upcall(sys_getenvid(), _dlex_upcall);
+        res = sys_env_set_exceed_deadline_upcall(sys_getenvid(), _dlex_upcall);
         goto end;
     }
 
