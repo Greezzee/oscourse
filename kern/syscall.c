@@ -294,9 +294,9 @@ sys_env_change_class(envid_t envid, enum EnvClass new_env_class, uint64_t period
 
     env->last_period_start_moment = 0;
     env->env_class = new_env_class;
-    env->period = period * timer_cpu_frequency("hpet0") / 1000;
-    env->deadline = deadline * timer_cpu_frequency("hpet0") / 1000;
-    env->max_job_time = max_job_time * timer_cpu_frequency("hpet0") / 1000;
+    env->period = period * get_cpu_freq("hpet0") / 1000;
+    env->deadline = deadline * get_cpu_freq("hpet0") / 1000;
+    env->max_job_time = max_job_time * get_cpu_freq("hpet0") / 1000;
     if (new_env_class == ENV_CLASS_REAL_TIME)
         env->env_status = ENV_PERIODIC_WAITING;
     if (curenv->env_id == envid) {

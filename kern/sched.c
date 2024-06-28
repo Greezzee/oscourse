@@ -75,7 +75,6 @@ sched_thr_yield(struct Env* env) {
             if (!possible_next_thr)
                 thrid2thr(env->env_thr_head, &possible_next_thr);
         }
-
         return NULL;
     }
     else {

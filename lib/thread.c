@@ -107,6 +107,7 @@ int jthread_mutex_lock(jthread_mutex mutex) {
         if (!buf) {
             this_mutex->owner_thread = this_thr;
             this_mutex->lock_depth = 1;
+            cprintf("-----------------Entering mutex\n");
             return 0;
         }
 
@@ -114,7 +115,7 @@ int jthread_mutex_lock(jthread_mutex mutex) {
             this_mutex->lock_depth++;
             return 0;
         }
-
+        cprintf("-----------------Locked by mutex\n");
         int res = sys_mutex_block_thr(this_mutex->global_mutex_id, this_mutex->owner_thread);
         if (res < 0)
             return res;
@@ -139,6 +140,7 @@ int jthread_mutex_unlock(jthread_mutex mutex) {
     if (buf == 0) {
         this_mutex->lock_depth = 0;
         this_mutex->is_locked = false;
+        cprintf("--------------Exiting mutex\n");
         return sys_mutex_unlock(this_mutex->global_mutex_id);
     }
 
