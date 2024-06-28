@@ -31,9 +31,11 @@ fork(void) {
     }
 
     if (sys_map_region(0, NULL, envid, NULL, MAX_USER_ADDRESS, PROT_ALL | PROT_LAZY | PROT_COMBINE)
-            || sys_env_set_pgfault_upcall(envid, thisenv->env_pgfault_upcall)
-            || sys_env_set_status(envid, ENV_RUNNABLE)) {
-        return -1;
+                || sys_env_set_pgfault_upcall(envid, thisenv->env_pgfault_upcall)
+                || sys_env_set_exceed_deadline_upcall(envid, thisenv->exceed_deadline_upcall)
+                || sys_env_set_status(envid, ENV_RUNNABLE)
+                || sys_env_change_class(envid, thisenv->env_class, thisenv->period, thisenv->deadline, thisenv->max_job_time)) {
+            return -1;
     }
     sys_yield();
     return envid;

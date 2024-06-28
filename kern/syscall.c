@@ -18,6 +18,7 @@
 #include <kern/timer.h>
 #include <kern/ipc.h>
 #include <kern/mutex.h>
+#include <kern/tsc.h>
 
 /* Print a string to the system console.
  * The string is exactly 'len' characters long.
@@ -274,16 +275,34 @@ sys_env_set_pgfault_upcall(envid_t envid, void *func) {
 }
 
 static int
+sys_env_set_exceed_deadline_upcall(envid_t envid, void* func) {
+    struct Env *env;
+    if (envid2env(envid, &env, 1) < 0) {
+        return -E_BAD_ENV;
+    }
+
+    env->exceed_deadline_upcall = func;
+    return 0;
+}
+
+static int
 sys_env_change_class(envid_t envid, enum EnvClass new_env_class, uint64_t period, uint64_t deadline, uint64_t max_job_time) {
     struct Env *env;
     if (envid2env(envid, &env, 0) < 0) {
         return -E_BAD_ENV;
     }
 
+    env->last_period_start_moment = 0;
     env->env_class = new_env_class;
-    env->period = period;
-    env->deadline = deadline;
-    env->max_job_time = max_job_time;
+    env->period = period * timer_cpu_frequency("hpet0") / 1000;
+    env->deadline = deadline * timer_cpu_frequency("hpet0") / 1000;
+    env->max_job_time = max_job_time * timer_cpu_frequency("hpet0") / 1000;
+    if (new_env_class == ENV_CLASS_REAL_TIME)
+        env->env_status = ENV_PERIODIC_WAITING;
+    if (curenv->env_id == envid) {
+        curthr->thr_tf.tf_regs.reg_rax = 0;
+        sched_yield();
+    }
     return 0;
 }
 
@@ -698,6 +717,8 @@ syscall(uintptr_t syscallno, uintptr_t a1, uintptr_t a2, uintptr_t a3, uintptr_t
         return sys_unmap_region((envid_t) a1, a2,(size_t)a3);
     case SYS_env_set_pgfault_upcall:
         return sys_env_set_pgfault_upcall((envid_t) a1, (void *)a2);
+    case SYS_env_set_exceed_deadline_upcall:
+        return sys_env_set_exceed_deadline_upcall((envid_t) a1, (void *)a2);
     case SYS_env_change_class:
         return sys_env_change_class((envid_t) a1, (enum EnvClass)a2, (uint64_t)a3, (uint64_t)a4, (uint64_t)a5);
     case SYS_yield:

@@ -181,7 +181,7 @@ env_alloc(struct Env **newenv_store, envid_t parent_id, enum EnvType type, enum 
     env->env_pgfault_upcall = 0;
 
     /* The same with deadline exceed handler */
-    env->env_deadline_exceed_handler = 0;
+    env->exceed_deadline_upcall = 0;
 
     /* Also clear the IPC receiving flag. */
     env->env_ipc_recving = 0;
@@ -468,6 +468,7 @@ load_icode(struct Env *env, uint8_t *binary, size_t size) {
 void
 env_create(uint8_t *binary, size_t size, enum EnvType type, enum EnvClass env_class, uint64_t period, uint64_t deadline, uint64_t max_job_time, void* env_deadline_exceed_handler) {
     // LAB 3: Your code here
+    (void)env_deadline_exceed_handler;
     if (!binary)
 		panic("env_create: null pointer 'binary'\n");
 
@@ -485,7 +486,7 @@ env_create(uint8_t *binary, size_t size, enum EnvType type, enum EnvClass env_cl
         env->left_max_job_time = max_job_time;
         env->last_launch_time = 0;
         env->last_period_start_moment = read_tsc();
-        env->env_deadline_exceed_handler = env_deadline_exceed_handler;
+        env->exceed_deadline_upcall = 0;
     }
 
 	// Load the program using the page directory of its environment.
